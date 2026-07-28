@@ -4,19 +4,51 @@
 
 Создать backend-приложение на NestJS для тренировки работы с SQL, транзакциями, оптимизацией запросов, паттерном Outbox без брокера сообщений, генерацией QR-code/avatar-контента, нагрузочным тестированием, метриками, логированием, Swagger-документацией и Docker-окружениями `local` и `prod`.
 
+## 0. Зафиксированный стек
+
+- [x] Backend framework: `NestJS`.
+- [x] Runtime/package manager: `Bun`.
+- [x] База данных: `MySQL`.
+- [x] ORM: не используем.
+- [x] Работа с БД: raw SQL через отдельный database/repository-слой.
+- [x] MySQL driver: `mysql2`.
+- [x] Миграции: простой собственный migration runner на SQL-файлах.
+- [x] HTTP validation: `class-validator` и `class-transformer`.
+- [x] Env validation: `zod`.
+- [x] Инфраструктура: `Docker Compose`.
+- [x] API-документация: `Swagger`.
+- [x] Логирование: `Pino`.
+- [x] Метрики: `Prometheus`.
+- [x] Визуализация: `Grafana`.
+- [x] Основной учебный фокус: SQL, транзакции, индексы, `JOIN`, `SELECT`, `EXPLAIN`, Outbox на таблице БД.
+
 ## 1. Базовая архитектура проекта
 
-- [ ] Зафиксировать стек проекта.
+- [x] Зафиксировать стек проекта.
   - Цель: заранее определить основные технологии и не менять фундамент во время разработки.
-  - Предлагаемый стек: `NestJS`, `Bun`, `PostgreSQL`, `Prisma` или `TypeORM`, `Docker Compose`, `Swagger`, `Pino`, `Prometheus`, `Grafana`, `k6`.
+  - Выбранный стек: `NestJS`, `Bun`, `MySQL`, raw SQL без ORM, `mysql2`, `class-validator`, `class-transformer`, `zod`, `Docker Compose`, `Swagger`, `Pino`, `Prometheus`, `Grafana`.
 
-- [ ] Выбрать SQL-библиотеку.
-  - Цель: решить, чем управлять схемой БД, миграциями и запросами.
-  - Вариант A: `Prisma` для удобных миграций, seed и типизации.
-  - Вариант B: `TypeORM` для более Nest-native подхода.
-  - Вариант C: `Kysely` или raw SQL для максимального фокуса на SQL.
+- [x] Выбрать подход к БД.
+  - Решение: не использовать ORM.
+  - Цель: тренировать реальный SQL, ручное проектирование схемы, транзакции, индексы и оптимизацию запросов.
+  - Доступ к БД должен быть изолирован в `database` и `repositories`, чтобы raw SQL не расползался по controllers/services.
 
-- [ ] Описать слои приложения.
+- [x] Выбрать MySQL driver.
+  - Решение: `mysql2`.
+  - Цель: иметь connection pool, prepared statements и ручной контроль транзакций.
+
+- [x] Подключить БД в проект.
+  - Решение: `DatabaseModule` создает MySQL connection pool через `mysql2`.
+  - Проверка: при старте выполняется `SELECT 1 AS health_check`.
+  - Логи: модуль пишет старт и успешное подключение к MySQL.
+
+- [x] Выбрать инструмент миграций без ORM.
+  - Решение: простой собственный migration runner на SQL-файлах.
+  - Цель: видеть весь SQL, руками управлять схемой и не прятать миграции за ORM.
+  - Ожидаемая структура: `database/migrations/*.sql`.
+  - Ожидаемая служебная таблица: `schema_migrations`.
+
+- [x] Описать слои приложения.
   - `controllers`: HTTP API.
   - `services`: бизнес-логика.
   - `repositories`: доступ к данным и SQL-запросы.
@@ -24,7 +56,7 @@
   - `workers`: фоновые задачи, включая обработчик Outbox.
   - `common`: общие фильтры, guards, interceptors, utils.
 
-- [ ] Создать структуру модулей.
+- [x] Создать структуру модулей.
   - `users`
   - `maps`
   - `orders`
@@ -37,23 +69,23 @@
 
 ## 2. Docker и окружения
 
-- [ ] Создать `docker-compose.local.yml`.
+- [x] Создать `docker-compose.local.yml`.
   - Цель: поднимать локальную инфраструктуру одной командой.
-  - Сервисы: `backend`, `postgres`, `pgadmin` или `adminer`, `prometheus`, `grafana`.
+  - Сервисы: `backend`, `mysql`, `adminer`, `prometheus`, `grafana`.
 
-- [ ] Создать `docker-compose.prod.yml`.
+- [x] Создать `docker-compose.prod.yml`.
   - Цель: иметь приближенное к production окружение.
   - Отличия: production env, restart policy, healthchecks, отдельные volume, отключенный hot reload.
 
-- [ ] Создать `Dockerfile` для backend.
+- [x] Создать `Dockerfile` для backend.
   - Цель: запускать Nest-приложение внутри контейнера.
   - Проверить отдельные стадии: dependencies, build, runtime.
 
-- [ ] Создать `.env.local` и `.env.prod.example`.
+- [x] Создать `.env.local` и `.env.prod.example`.
   - Цель: разделить настройки окружений.
-  - Переменные: `APP_PORT`, `DATABASE_URL`, `LOG_LEVEL`, `OUTBOX_POLL_INTERVAL_MS`, `MEDIA_STORAGE_MODE`, `PROMETHEUS_PORT`.
+  - Переменные: `APP_PORT`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `ADMINER_PORT`, `PROMETHEUS_PORT`, `GRAFANA_PORT`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`, `LOG_LEVEL`, `OUTBOX_POLL_INTERVAL_MS`, `MEDIA_STORAGE_MODE`.
 
-- [ ] Добавить команды запуска.
+- [x] Добавить команды запуска.
   - `bun run docker:local`
   - `bun run docker:prod`
   - `bun run docker:down`
@@ -61,36 +93,37 @@
 
 ## 3. База данных и SQL
 
-- [ ] Спроектировать таблицу `users`.
+- [x] Спроектировать таблицу `users`.
   - Цель: хранить пользователей, для которых генерируются медиа.
   - Поля: `id`, `email`, `name`, `avatar_seed`, `created_at`, `updated_at`.
 
-- [ ] Спроектировать таблицу `maps`.
+- [x] Спроектировать таблицу `maps`.
   - Цель: хранить сущности, для которых можно генерировать QR-code или связанный контент.
   - Поля: `id`, `title`, `description`, `latitude`, `longitude`, `owner_user_id`, `created_at`, `updated_at`.
 
-- [ ] Спроектировать таблицу `orders`.
+- [x] Спроектировать таблицу `orders`.
   - Цель: моделировать бизнес-события, на которых удобно тренировать транзакции и Outbox.
   - Поля: `id`, `user_id`, `map_id`, `status`, `total_amount`, `created_at`, `updated_at`.
 
-- [ ] Спроектировать таблицу `media_assets`.
+- [x] Спроектировать таблицу `media_assets`.
   - Цель: хранить результат генерации QR-code/avatar.
   - Поля: `id`, `owner_type`, `owner_id`, `type`, `mime_type`, `storage_type`, `content_base64`, `file_path`, `metadata`, `created_at`.
 
-- [ ] Спроектировать таблицу `outbox_events`.
+- [x] Спроектировать таблицу `outbox_events`.
   - Цель: реализовать Outbox без брокеров.
   - Поля: `id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload`, `status`, `attempts`, `next_retry_at`, `processed_at`, `error`, `created_at`.
 
-- [ ] Добавить индексы.
+- [x] Добавить индексы.
   - Цель: тренировать оптимизацию запросов.
   - Индексы: `users.email`, `orders.user_id`, `orders.map_id`, `orders.status`, `maps.owner_user_id`, `outbox_events.status`, `outbox_events.next_retry_at`.
 
-- [ ] Написать SQL-примеры.
+- [x] Написать SQL-примеры.
   - `SELECT` с фильтрацией и сортировкой.
   - `JOIN` между `users`, `orders`, `maps`.
   - `GROUP BY` для статистики заказов.
   - `EXPLAIN ANALYZE` для оценки планов запросов.
   - Транзакция создания заказа и записи Outbox-события.
+  - Prepared statements через `mysql2`.
 
 ## 4. Транзакции и Outbox
 
@@ -104,7 +137,7 @@
 
 - [ ] Реализовать блокировку событий при обработке.
   - Цель: избежать двойной обработки при нескольких инстансах приложения.
-  - Изучить: `SELECT ... FOR UPDATE SKIP LOCKED`.
+  - Изучить: `SELECT ... FOR UPDATE SKIP LOCKED` в MySQL 8.
 
 - [ ] Реализовать retry-механику.
   - Поля: `attempts`, `next_retry_at`, `error`.
@@ -151,7 +184,7 @@
 ## 6. Seed и генерация данных
 
 - [ ] Выбрать библиотеку seed/fake-data.
-  - Варианты: `@faker-js/faker`, seed-механизм Prisma, кастомный seed runner.
+  - Варианты: `@faker-js/faker` и кастомный seed runner на raw SQL.
 
 - [ ] Реализовать seed пользователей.
   - Цель: быстро создавать тестовый объем данных.
@@ -202,16 +235,16 @@
 
 ## 8. Виртуализированный клиент БД
 
-- [ ] Добавить `pgAdmin` или `Adminer` в Docker Compose.
+- [x] Добавить `Adminer` в Docker Compose.
   - Цель: удобно смотреть таблицы, писать SQL и проверять данные.
 
-- [ ] Подготовить подключение к PostgreSQL.
-  - Host: `postgres`
-  - Port: `5432`
-  - Database: `app`
+- [x] Подготовить подключение к MySQL.
+  - Host: `mysql`
+  - Port: `3306`
+  - Database: `nest_outbox`
   - User: `app`
 
-- [ ] Добавить инструкцию в документацию.
+- [x] Добавить инструкцию в документацию.
   - Как открыть клиент.
   - Как подключиться.
   - Какие SQL-запросы попробовать первыми.
@@ -397,7 +430,7 @@
 
 ## 15. Рекомендуемый порядок разработки
 
-- [ ] Этап 1: Docker local, PostgreSQL, DB-клиент.
+- [ ] Этап 1: Docker local, MySQL, DB-клиент.
 - [ ] Этап 2: схема БД, миграции, seed.
 - [ ] Этап 3: CRUD `users`, `maps`, `orders`.
 - [ ] Этап 4: Swagger и DTO validation.
