@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Pool, RowDataPacket } from 'mysql2/promise';
 import { MYSQL_POOL } from './connections/mysql-pool.token';
 import { parseDatabaseEnv } from './config/database-env.schema';
@@ -29,7 +35,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       `DatabaseModule initialization started: host=${config.MYSQL_HOST}, port=${config.MYSQL_PORT}, database=${config.MYSQL_DATABASE}, user=${config.MYSQL_USER}`,
     );
 
-    const [rows] = await this.pool.query<DatabaseHealthCheckRow[]>('SELECT 1 AS health_check');
+    const [rows] = await this.pool.query<DatabaseHealthCheckRow[]>(
+      'SELECT 1 AS health_check',
+    );
     const healthCheck = rows[0]?.health_check;
 
     if (healthCheck !== 1) {

@@ -7,6 +7,7 @@
 Основная миграция: `backend/database/migrations/001_create_core_tables.sql`.
 
 Практические запросы: `docs/sql-examples.md`.
+Seed и миграции: `docs/seed.md`.
 
 ## Общие решения
 
