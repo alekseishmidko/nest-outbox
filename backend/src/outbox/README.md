@@ -4,7 +4,7 @@
 
 Модуль `outbox` реализует паттерн Outbox без брокеров. События сохраняются в таблицу `outbox_events`, а worker периодически читает и обрабатывает их.
 
-## Планируемая структура
+## Структура
 
 - `controllers`: endpoints для диагностики и ручного retry.
 - `services`: регистрация и обработка событий.
@@ -20,6 +20,13 @@
 - Блокировка событий через `FOR UPDATE SKIP LOCKED`.
 - Retry после ошибок.
 - Метрики по processed/failed/pending.
+
+## Runtime-поведение
+
+- `OutboxPublisher` стартует вместе с Nest-приложением.
+- За один tick worker забирает пачку событий через `FOR UPDATE SKIP LOCKED`.
+- Успешное событие переводится в `processed`.
+- Ошибка переводит событие в `failed`, увеличивает `attempts` и заполняет `next_retry_at`.
 
 ## SQL-фокус
 
