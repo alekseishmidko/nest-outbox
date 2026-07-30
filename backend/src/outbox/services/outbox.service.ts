@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ListOutboxEventsQueryDto } from '../dto/list-outbox-events-query.dto';
+import { OrderCreatedOutboxHandler } from '../handlers/order-created-outbox.handler';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
 
@@ -8,7 +9,10 @@ import { OutboxEventRecord } from '../types/outbox-event-record.type';
  */
 @Injectable()
 export class OutboxService {
-  constructor(private readonly outboxRepository: OutboxRepository) {}
+  constructor(
+    private readonly outboxRepository: OutboxRepository,
+    private readonly orderCreatedOutboxHandler: OrderCreatedOutboxHandler,
+  ) {}
 
   findAll(query: ListOutboxEventsQueryDto): Promise<OutboxEventRecord[]> {
     return this.outboxRepository.findAll(query);
@@ -32,5 +36,16 @@ export class OutboxService {
     }
 
     return event;
+  }
+
+  /**
+   * Обрабатывает событие через зарегистрированный handler.
+   *
+   * Полноценный polling worker будет вызывать этот метод на следующем этапе.
+   */
+  async handleEvent(event: OutboxEventRecord): Promise<void> {
+    if (event.eventType === 'order.created') {
+      await this.orderCreatedOutboxHandler.handle(event);
+    }
   }
 }

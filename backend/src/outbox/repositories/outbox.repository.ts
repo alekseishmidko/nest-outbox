@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ResultSetHeader } from 'mysql2';
-import { Pool } from 'mysql2/promise';
+import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { ListOutboxEventsQueryDto } from '../dto/list-outbox-events-query.dto';
+import { OutboxEventStatus } from '../dto/outbox-event-status.dto';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
 import { OutboxEventRow } from '../types/outbox-event-row.type';
 
@@ -14,6 +15,44 @@ import { OutboxEventRow } from '../types/outbox-event-row.type';
 @Injectable()
 export class OutboxRepository {
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
+
+  /**
+   * Атомарно забирает пачку событий в обработку.
+   *
+   * `FOR UPDATE SKIP LOCKED` блокирует только выбранные строки и позволяет
+   * нескольким инстансам приложения параллельно забирать разные события.
+   */
+  async claimDueEvents(limit: number): Promise<OutboxEventRecord[]> {
+    const connection = await this.pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const rows = await this.selectDueEventsForUpdate(connection, limit);
+
+      if (rows.length === 0) {
+        await connection.commit();
+        return [];
+      }
+
+      await this.markRowsAsProcessing(
+        connection,
+        rows.map((row) => row.id),
+      );
+      await connection.commit();
+
+      return rows.map((row) => ({
+        ...this.toRecord(row),
+        status: OutboxEventStatus.Processing,
+        error: null,
+      }));
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 
   async findAll(query: ListOutboxEventsQueryDto): Promise<OutboxEventRecord[]> {
     const limit = query.limit ?? 20;
@@ -114,6 +153,105 @@ export class OutboxRepository {
     }
 
     return this.findById(id);
+  }
+
+  /**
+   * Фиксирует успешную обработку события.
+   */
+  async markProcessed(id: number): Promise<void> {
+    await this.pool.execute(
+      `
+        UPDATE outbox_events
+        SET
+          status = ?,
+          processed_at = CURRENT_TIMESTAMP(3),
+          next_retry_at = NULL,
+          error = NULL
+        WHERE id = ?
+      `,
+      [OutboxEventStatus.Processed, id],
+    );
+  }
+
+  /**
+   * Фиксирует ошибку обработки и планирует следующую попытку.
+   */
+  async markFailed(
+    id: number,
+    attempts: number,
+    error: string,
+    nextRetryAt: Date | null,
+  ): Promise<void> {
+    await this.pool.execute(
+      `
+        UPDATE outbox_events
+        SET
+          status = ?,
+          attempts = ?,
+          next_retry_at = ?,
+          processed_at = NULL,
+          error = ?
+        WHERE id = ?
+      `,
+      [OutboxEventStatus.Failed, attempts, nextRetryAt, error, id],
+    );
+  }
+
+  private async selectDueEventsForUpdate(
+    connection: PoolConnection,
+    limit: number,
+  ): Promise<OutboxEventRow[]> {
+    const [rows] = await connection.query<OutboxEventRow[]>(
+      `
+        SELECT
+          id,
+          event_type,
+          aggregate_type,
+          aggregate_id,
+          payload,
+          status,
+          attempts,
+          next_retry_at,
+          processed_at,
+          error,
+          created_at
+        FROM outbox_events
+        WHERE
+          (
+            status = ?
+            AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP(3))
+          )
+          OR (
+            status = ?
+            AND next_retry_at IS NOT NULL
+            AND next_retry_at <= CURRENT_TIMESTAMP(3)
+          )
+        ORDER BY created_at ASC
+        LIMIT ?
+        FOR UPDATE SKIP LOCKED
+      `,
+      [OutboxEventStatus.Pending, OutboxEventStatus.Failed, limit],
+    );
+
+    return rows;
+  }
+
+  private async markRowsAsProcessing(
+    connection: PoolConnection,
+    ids: number[],
+  ): Promise<void> {
+    const placeholders = ids.map(() => '?').join(', ');
+
+    await connection.query(
+      `
+        UPDATE outbox_events
+        SET
+          status = ?,
+          error = NULL
+        WHERE id IN (${placeholders})
+      `,
+      [OutboxEventStatus.Processing, ...ids],
+    );
   }
 
   private toRecord(row: OutboxEventRow): OutboxEventRecord {

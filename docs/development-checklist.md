@@ -83,7 +83,7 @@
 
 - [x] Создать `.env.local` и `.env.prod.example`.
   - Цель: разделить настройки окружений.
-  - Переменные: `APP_PORT`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `ADMINER_PORT`, `PROMETHEUS_PORT`, `GRAFANA_PORT`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`, `LOG_LEVEL`, `OUTBOX_POLL_INTERVAL_MS`, `MEDIA_STORAGE_MODE`.
+  - Переменные: `APP_PORT`, `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `ADMINER_PORT`, `PROMETHEUS_PORT`, `GRAFANA_PORT`, `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`, `LOG_LEVEL`, `OUTBOX_POLL_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS`, `OUTBOX_RETRY_BASE_DELAY_MS`, `MEDIA_STORAGE_MODE`.
 
 - [x] Добавить команды запуска.
   - `bun run docker:local`
@@ -127,29 +127,29 @@
 
 ## 4. Транзакции и Outbox
 
-- [ ] Реализовать создание заказа в транзакции.
+- [x] Реализовать создание заказа в транзакции.
   - Цель: атомарно создать `orders` и `outbox_events`.
   - Критерий готовности: если запись события не создалась, заказ тоже не сохраняется.
 
-- [ ] Реализовать `OutboxPublisher`.
+- [x] Реализовать `OutboxPublisher`.
   - Цель: периодически читать события из `outbox_events`.
   - Без брокеров: обработка идет через polling таблицы.
 
-- [ ] Реализовать блокировку событий при обработке.
+- [x] Реализовать блокировку событий при обработке.
   - Цель: избежать двойной обработки при нескольких инстансах приложения.
   - Изучить: `SELECT ... FOR UPDATE SKIP LOCKED` в MySQL 8.
 
-- [ ] Реализовать retry-механику.
+- [x] Реализовать retry-механику.
   - Поля: `attempts`, `next_retry_at`, `error`.
   - Цель: тренировать надежную обработку ошибок.
 
-- [ ] Реализовать статусы событий.
+- [x] Реализовать статусы событий.
   - `pending`
   - `processing`
   - `processed`
   - `failed`
 
-- [ ] Добавить тесты Outbox.
+- [x] Добавить тесты Outbox.
   - Успешная обработка события.
   - Ошибка обработчика.
   - Повторная попытка.
@@ -157,27 +157,27 @@
 
 ## 5. Генерация QR-code и avatar
 
-- [ ] Выбрать библиотеки генерации.
+- [x] Выбрать библиотеки генерации.
   - QR-code: `qrcode`.
-  - Avatar: `boring-avatars`, `dicebear` или аналогичная библиотека.
+  - Avatar: `@dicebear/core` и `@dicebear/collection`.
 
-- [ ] Создать модуль `media`.
+- [x] Создать модуль `media`.
   - Цель: изолировать генерацию и хранение медиа.
 
-- [ ] Реализовать генерацию QR-code для `maps`.
+- [x] Реализовать генерацию QR-code для `maps`.
   - Вход: `mapId`, URL или payload.
   - Выход: `base64`, `dataUrl` или сохраненный asset.
 
-- [ ] Реализовать генерацию avatar для `users`.
+- [x] Реализовать генерацию avatar для `users`.
   - Вход: `userId`, `avatar_seed`.
   - Выход: `base64`, `svg`, `png` или сохраненный asset.
 
-- [ ] Добавить API для медиа.
+- [x] Добавить API для медиа.
   - `POST /media/users/:userId/avatar`
   - `POST /media/maps/:mapId/qr`
   - `GET /media/:id`
 
-- [ ] Связать генерацию с Outbox.
+- [x] Связать генерацию с Outbox.
   - Пример: после создания заказа создать событие `order.created`.
   - Обработчик события генерирует QR-code или avatar.
 

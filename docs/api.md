@@ -92,6 +92,28 @@ Repository:
 
 - `OutboxRepository`
 
+## Media
+
+| Метод | URL | Назначение |
+| --- | --- | --- |
+| `POST` | `/media/users/:userId/avatar` | Сгенерировать avatar пользователя и сохранить asset |
+| `POST` | `/media/maps/:mapId/qr` | Сгенерировать QR-code карты и сохранить asset |
+| `GET` | `/media/:id` | Получить media asset по ID |
+
+DTO:
+
+- `GenerateUserAvatarDto`
+- `GenerateMapQrDto`
+
+Repository:
+
+- `MediaRepository`
+
+Генераторы:
+
+- `AvatarGenerator`: `@dicebear/core` + `@dicebear/collection`.
+- `QrCodeGenerator`: `qrcode`.
+
 ## Swagger
 
 Swagger подключен в `main.ts` через `SwaggerModule.setup('docs', app, swaggerDocument)`.
