@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsLatitude,
+  IsInt,
   IsLongitude,
   IsNumber,
   IsOptional,
@@ -57,6 +58,6 @@ export class CreateMapDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   ownerUserId!: number;
 }

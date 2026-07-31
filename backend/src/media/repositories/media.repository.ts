@@ -27,6 +27,9 @@ type CreateMediaAssetInput = {
 export class MediaRepository {
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Возвращает минимальный набор данных пользователя для генерации avatar.
+   */
   async findUserForAvatar(userId: number): Promise<MediaUserRow | null> {
     const [rows] = await this.pool.execute<MediaUserRow[]>(
       `
@@ -45,6 +48,9 @@ export class MediaRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Возвращает минимальный набор данных карты для генерации QR-code.
+   */
   async findMapForQr(mapId: number): Promise<MediaMapRow | null> {
     const [rows] = await this.pool.execute<MediaMapRow[]>(
       `
@@ -65,6 +71,12 @@ export class MediaRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Сохраняет сгенерированный media asset в `media_assets`.
+   *
+   * На текущем этапе основной storage mode - `database`, поэтому контент
+   * хранится в `content_base64`, а технические детали генерации - в JSON metadata.
+   */
   async createAsset(input: CreateMediaAssetInput): Promise<MediaAssetRecord> {
     const [result] = await this.pool.execute<ResultSetHeader>(
       `
@@ -94,6 +106,9 @@ export class MediaRepository {
     return this.findByIdOrThrow(result.insertId);
   }
 
+  /**
+   * Ищет media asset по идентификатору.
+   */
   async findById(id: number): Promise<MediaAssetRecord | null> {
     const [rows] = await this.pool.execute<MediaAssetRow[]>(
       `
@@ -118,6 +133,9 @@ export class MediaRepository {
     return rows[0] ? this.toRecord(rows[0]) : null;
   }
 
+  /**
+   * Возвращает созданный asset или падает, если insert не дал читаемой записи.
+   */
   private async findByIdOrThrow(id: number): Promise<MediaAssetRecord> {
     const asset = await this.findById(id);
 
@@ -128,6 +146,9 @@ export class MediaRepository {
     return asset;
   }
 
+  /**
+   * Преобразует SQL-row в доменный тип и нормализует JSON metadata.
+   */
   private toRecord(row: MediaAssetRow): MediaAssetRecord {
     return {
       id: row.id,

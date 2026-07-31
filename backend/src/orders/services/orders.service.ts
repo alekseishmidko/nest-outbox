@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { MapsService } from '../../maps/services/maps.service';
+import { UsersService } from '../../users/services/users.service';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
@@ -10,9 +12,22 @@ import { OrderRecord } from '../types/order-record.type';
  */
 @Injectable()
 export class OrdersService {
-  constructor(private readonly ordersRepository: OrdersRepository) {}
+  constructor(
+    private readonly ordersRepository: OrdersRepository,
+    private readonly usersService: UsersService,
+    private readonly mapsService: MapsService,
+  ) {}
 
-  create(dto: CreateOrderDto): Promise<OrderRecord> {
+  /**
+   * Создает заказ только для существующих пользователя и карты.
+   *
+   * Предварительная проверка делает ошибку API понятной и не пропускает наружу
+   * MySQL foreign key exception.
+   */
+  async create(dto: CreateOrderDto): Promise<OrderRecord> {
+    await this.usersService.findById(dto.userId);
+    await this.mapsService.findById(dto.mapId);
+
     return this.ordersRepository.createWithOutbox(dto);
   }
 

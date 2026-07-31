@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  isMysqlDuplicateEntryError,
+  isMysqlForeignKeyReferencedError,
+} from '../../common/utils/mysql-error.util';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ListUsersQueryDto } from '../dto/list-users-query.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
@@ -14,8 +22,16 @@ import { UserRecord } from '../types/user-record.type';
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  create(dto: CreateUserDto): Promise<UserRecord> {
-    return this.usersRepository.create(dto);
+  async create(dto: CreateUserDto): Promise<UserRecord> {
+    try {
+      return await this.usersRepository.create(dto);
+    } catch (error) {
+      if (isMysqlDuplicateEntryError(error)) {
+        throw new ConflictException(`Email ${dto.email} уже используется`);
+      }
+
+      throw error;
+    }
   }
 
   findAll(query: ListUsersQueryDto): Promise<UserRecord[]> {
@@ -43,7 +59,19 @@ export class UsersService {
   }
 
   async delete(id: number): Promise<{ deleted: true }> {
-    const deleted = await this.usersRepository.delete(id);
+    let deleted: boolean;
+
+    try {
+      deleted = await this.usersRepository.delete(id);
+    } catch (error) {
+      if (isMysqlForeignKeyReferencedError(error)) {
+        throw new ConflictException(
+          `Пользователь ${id} связан с картами или заказами и не может быть удален`,
+        );
+      }
+
+      throw error;
+    }
 
     if (!deleted) {
       throw new NotFoundException(`Пользователь ${id} не найден`);

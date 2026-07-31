@@ -26,6 +26,7 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
 COPY --from=build /app/dist ./dist
+COPY database ./database
 
 EXPOSE 3000
 CMD ["bun", "run", "start:prod"]

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Post,
@@ -28,6 +29,7 @@ export class OutboxController {
   }
 
   @Post(':id/retry')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Повторно поставить Outbox-событие в обработку' })
   retry(@Param('id', ParseIntPipe) id: number) {
     return this.outboxService.retry(id);
