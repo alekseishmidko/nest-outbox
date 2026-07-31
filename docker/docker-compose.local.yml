@@ -16,6 +16,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-app_password}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-10}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-5}
+      OUTBOX_RETRY_BASE_DELAY_MS: ${OUTBOX_RETRY_BASE_DELAY_MS:-1000}
       MEDIA_STORAGE_MODE: ${MEDIA_STORAGE_MODE:-database}
     ports:
       - "${APP_PORT:-3000}:${APP_PORT:-3000}"
@@ -25,7 +28,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    command: bun run start:dev
+    command: ["sh", "-c", "bun run db:migrate && bun run start:dev"]
 
   mysql:
     image: mysql:8.4

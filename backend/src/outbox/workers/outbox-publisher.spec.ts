@@ -180,4 +180,23 @@ describe('OutboxPublisher', () => {
     resolveClaim!([event]);
     await firstTick;
   });
+
+  it('не пробрасывает ошибку claimDueEvents наружу', async () => {
+    const publisher = createPublisher();
+
+    repository.claimDueEvents.mockRejectedValue(
+      new Error('outbox_events table does not exist'),
+    );
+
+    const result = await publisher.processDueBatch();
+
+    expect(result).toEqual({
+      claimed: 0,
+      processed: 0,
+      failed: 0,
+    });
+    expect(service.handleEvent).not.toHaveBeenCalled();
+    expect(repository.markProcessed).not.toHaveBeenCalled();
+    expect(repository.markFailed).not.toHaveBeenCalled();
+  });
 });

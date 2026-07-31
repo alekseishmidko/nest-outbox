@@ -41,12 +41,12 @@ export class UsersRepository {
    * Возвращает список пользователей с фильтрацией и пагинацией.
    */
   async findAll(query: ListUsersQueryDto): Promise<UserRecord[]> {
-    const limit = query.limit ?? 20;
-    const offset = query.offset ?? 0;
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
 
     if (query.search) {
       const search = `%${query.search}%`;
-      const [rows] = await this.pool.execute<UserRow[]>(
+      const [rows] = await this.pool.query<UserRow[]>(
         `
           SELECT
             id,
@@ -66,7 +66,7 @@ export class UsersRepository {
       return rows.map(this.toRecord);
     }
 
-    const [rows] = await this.pool.execute<UserRow[]>(
+    const [rows] = await this.pool.query<UserRow[]>(
       `
         SELECT
           id,
@@ -157,6 +157,9 @@ export class UsersRepository {
     return result.affectedRows > 0;
   }
 
+  /**
+   * Возвращает созданного пользователя или падает, если insert не дал читаемой записи.
+   */
   private async findByIdOrThrow(id: number): Promise<UserRecord> {
     const user = await this.findById(id);
 
@@ -167,6 +170,9 @@ export class UsersRepository {
     return user;
   }
 
+  /**
+   * Преобразует snake_case строку MySQL в camelCase доменный тип.
+   */
   private toRecord(row: UserRow): UserRecord {
     return {
       id: row.id,

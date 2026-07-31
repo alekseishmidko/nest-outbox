@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { MapsModule } from '../maps/maps.module';
+import { UsersModule } from '../users/users.module';
 import { OrdersController } from './controllers/orders.controller';
 import { OrdersRepository } from './repositories/orders.repository';
 import { OrdersService } from './services/orders.service';
@@ -10,7 +12,7 @@ import { OrdersService } from './services/orders.service';
  * Используется для тренировки транзакций и записи Outbox-событий.
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, MapsModule, UsersModule],
   controllers: [OrdersController],
   providers: [OrdersRepository, OrdersService],
   exports: [OrdersService],

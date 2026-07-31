@@ -23,12 +23,16 @@ export class OutboxRepository {
    * нескольким инстансам приложения параллельно забирать разные события.
    */
   async claimDueEvents(limit: number): Promise<OutboxEventRecord[]> {
+    const normalizedLimit = Number(limit);
     const connection = await this.pool.getConnection();
 
     try {
       await connection.beginTransaction();
 
-      const rows = await this.selectDueEventsForUpdate(connection, limit);
+      const rows = await this.selectDueEventsForUpdate(
+        connection,
+        normalizedLimit,
+      );
 
       if (rows.length === 0) {
         await connection.commit();
@@ -54,12 +58,18 @@ export class OutboxRepository {
     }
   }
 
+  /**
+   * Возвращает список Outbox-событий с опциональной фильтрацией по статусу.
+   *
+   * Для пагинации используется `query()`, потому что `execute()` может падать
+   * на `LIMIT/OFFSET` в server-side prepared statements.
+   */
   async findAll(query: ListOutboxEventsQueryDto): Promise<OutboxEventRecord[]> {
-    const limit = query.limit ?? 20;
-    const offset = query.offset ?? 0;
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
 
     if (query.status) {
-      const [rows] = await this.pool.execute<OutboxEventRow[]>(
+      const [rows] = await this.pool.query<OutboxEventRow[]>(
         `
           SELECT
             id,
@@ -84,7 +94,7 @@ export class OutboxRepository {
       return rows.map(this.toRecord);
     }
 
-    const [rows] = await this.pool.execute<OutboxEventRow[]>(
+    const [rows] = await this.pool.query<OutboxEventRow[]>(
       `
         SELECT
           id,
@@ -108,6 +118,9 @@ export class OutboxRepository {
     return rows.map(this.toRecord);
   }
 
+  /**
+   * Ищет Outbox-событие по идентификатору.
+   */
   async findById(id: number): Promise<OutboxEventRecord | null> {
     const [rows] = await this.pool.execute<OutboxEventRow[]>(
       `
@@ -133,6 +146,11 @@ export class OutboxRepository {
     return rows[0] ? this.toRecord(rows[0]) : null;
   }
 
+  /**
+   * Сбрасывает событие в ручную повторную обработку.
+   *
+   * Метод очищает ошибку, дату следующей попытки и счетчик attempts.
+   */
   async retry(id: number): Promise<OutboxEventRecord | null> {
     const [result] = await this.pool.execute<ResultSetHeader>(
       `
@@ -197,6 +215,9 @@ export class OutboxRepository {
     );
   }
 
+  /**
+   * Выбирает due-события внутри транзакции и блокирует выбранные строки.
+   */
   private async selectDueEventsForUpdate(
     connection: PoolConnection,
     limit: number,
@@ -236,6 +257,9 @@ export class OutboxRepository {
     return rows;
   }
 
+  /**
+   * Переводит забранные события в `processing` внутри той же транзакции claim.
+   */
   private async markRowsAsProcessing(
     connection: PoolConnection,
     ids: number[],
@@ -254,6 +278,9 @@ export class OutboxRepository {
     );
   }
 
+  /**
+   * Преобразует SQL-row в доменный тип и нормализует JSON payload.
+   */
   private toRecord(row: OutboxEventRow): OutboxEventRecord {
     return {
       id: row.id,

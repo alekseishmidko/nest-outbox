@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { isMysqlForeignKeyReferencedError } from '../../common/utils/mysql-error.util';
+import { UsersService } from '../../users/services/users.service';
 import { CreateMapDto } from '../dto/create-map.dto';
 import { ListMapsQueryDto } from '../dto/list-maps-query.dto';
 import { UpdateMapDto } from '../dto/update-map.dto';
@@ -10,9 +16,20 @@ import { MapRecord } from '../types/map-record.type';
  */
 @Injectable()
 export class MapsService {
-  constructor(private readonly mapsRepository: MapsRepository) {}
+  constructor(
+    private readonly mapsRepository: MapsRepository,
+    private readonly usersService: UsersService,
+  ) {}
 
-  create(dto: CreateMapDto): Promise<MapRecord> {
+  /**
+   * Создает карту только для существующего пользователя-владельца.
+   *
+   * Предварительная проверка нужна, чтобы API возвращал понятный `404`,
+   * а не внутреннюю MySQL-ошибку foreign key constraint.
+   */
+  async create(dto: CreateMapDto): Promise<MapRecord> {
+    await this.usersService.findById(dto.ownerUserId);
+
     return this.mapsRepository.create(dto);
   }
 
@@ -41,7 +58,19 @@ export class MapsService {
   }
 
   async delete(id: number): Promise<{ deleted: true }> {
-    const deleted = await this.mapsRepository.delete(id);
+    let deleted: boolean;
+
+    try {
+      deleted = await this.mapsRepository.delete(id);
+    } catch (error) {
+      if (isMysqlForeignKeyReferencedError(error)) {
+        throw new ConflictException(
+          `Карта ${id} связана с заказами и не может быть удалена`,
+        );
+      }
+
+      throw error;
+    }
 
     if (!deleted) {
       throw new NotFoundException(`Карта ${id} не найдена`);

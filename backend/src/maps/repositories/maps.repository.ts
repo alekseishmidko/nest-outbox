@@ -18,6 +18,11 @@ import { SqlValue } from '../types/sql-value.type';
 export class MapsRepository {
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Создает карту и возвращает полную запись из БД.
+   *
+   * `description` может быть пустым, поэтому передается как `NULL`.
+   */
   async create(dto: CreateMapDto): Promise<MapRecord> {
     const [result] = await this.pool.execute<ResultSetHeader>(
       `
@@ -41,13 +46,22 @@ export class MapsRepository {
     return this.findByIdOrThrow(result.insertId);
   }
 
+  /**
+   * Возвращает список карт с фильтрацией по владельцу и поиском по названию.
+   *
+   * Для `LIMIT/OFFSET` используется `query()`, а не `execute()`, потому что
+   * MySQL native prepared statements в некоторых окружениях падают на
+   * параметризованной пагинации с `Incorrect arguments to mysqld_stmt_execute`.
+   */
   async findAll(query: ListMapsQueryDto): Promise<MapRecord[]> {
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
     const where: string[] = [];
     const values: SqlValue[] = [];
 
     if (query.ownerUserId !== undefined) {
       where.push('owner_user_id = ?');
-      values.push(query.ownerUserId);
+      values.push(Number(query.ownerUserId));
     }
 
     if (query.search) {
@@ -55,9 +69,9 @@ export class MapsRepository {
       values.push(`%${query.search}%`);
     }
 
-    values.push(query.limit ?? 20, query.offset ?? 0);
+    values.push(limit, offset);
 
-    const [rows] = await this.pool.execute<MapRow[]>(
+    const [rows] = await this.pool.query<MapRow[]>(
       `
         SELECT
           id,
@@ -79,6 +93,9 @@ export class MapsRepository {
     return rows.map(this.toRecord);
   }
 
+  /**
+   * Ищет карту по идентификатору.
+   */
   async findById(id: number): Promise<MapRecord | null> {
     const [rows] = await this.pool.execute<MapRow[]>(
       `
@@ -101,6 +118,12 @@ export class MapsRepository {
     return rows[0] ? this.toRecord(rows[0]) : null;
   }
 
+  /**
+   * Частично обновляет карту и возвращает актуальное состояние записи.
+   *
+   * SQL собирается только из разрешенных полей DTO. Пользовательский ввод не
+   * попадает в имена колонок, значения передаются через placeholders.
+   */
   async update(id: number, dto: UpdateMapDto): Promise<MapRecord | null> {
     const fields: string[] = [];
     const values: SqlValue[] = [];
@@ -140,6 +163,11 @@ export class MapsRepository {
     return this.findById(id);
   }
 
+  /**
+   * Удаляет карту по идентификатору.
+   *
+   * Возвращает `true`, если MySQL реально удалил строку.
+   */
   async delete(id: number): Promise<boolean> {
     const [result] = await this.pool.execute<ResultSetHeader>(
       'DELETE FROM maps WHERE id = ?',
@@ -149,6 +177,9 @@ export class MapsRepository {
     return result.affectedRows > 0;
   }
 
+  /**
+   * Возвращает созданную карту или падает, если insert не дал читаемой записи.
+   */
   private async findByIdOrThrow(id: number): Promise<MapRecord> {
     const map = await this.findById(id);
 
@@ -159,6 +190,9 @@ export class MapsRepository {
     return map;
   }
 
+  /**
+   * Преобразует snake_case строку MySQL в camelCase доменный тип.
+   */
   private toRecord(row: MapRow): MapRecord {
     return {
       id: row.id,

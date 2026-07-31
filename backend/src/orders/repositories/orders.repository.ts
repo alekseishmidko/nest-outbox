@@ -18,6 +18,11 @@ import { SqlValue } from '../types/sql-value.type';
 export class OrdersRepository {
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Создает заказ и Outbox-событие `order.created` в одной транзакции.
+   *
+   * Если вставка события падает, транзакция откатывается и заказ не сохраняется.
+   */
   async createWithOutbox(dto: CreateOrderDto): Promise<OrderRecord> {
     const connection = await this.pool.getConnection();
 
@@ -75,12 +80,18 @@ export class OrdersRepository {
     }
   }
 
+  /**
+   * Возвращает список заказов с опциональной фильтрацией по статусу.
+   *
+   * Для запросов с `LIMIT/OFFSET` используется `query()`, чтобы избежать
+   * проблем MySQL native prepared statements с параметрами пагинации.
+   */
   async findAll(query: ListOrdersQueryDto): Promise<OrderRecord[]> {
-    const limit = query.limit ?? 20;
-    const offset = query.offset ?? 0;
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
 
     if (query.status) {
-      const [rows] = await this.pool.execute<OrderRow[]>(
+      const [rows] = await this.pool.query<OrderRow[]>(
         `
           SELECT
             id,
@@ -101,7 +112,7 @@ export class OrdersRepository {
       return rows.map(this.toRecord);
     }
 
-    const [rows] = await this.pool.execute<OrderRow[]>(
+    const [rows] = await this.pool.query<OrderRow[]>(
       `
         SELECT
           id,
@@ -121,8 +132,11 @@ export class OrdersRepository {
     return rows.map(this.toRecord);
   }
 
+  /**
+   * Ищет заказ по идентификатору.
+   */
   async findById(id: number): Promise<OrderRecord | null> {
-    const [rows] = await this.pool.execute<OrderRow[]>(
+    const [rows] = await this.pool.query<OrderRow[]>(
       `
         SELECT
           id,
@@ -142,6 +156,9 @@ export class OrdersRepository {
     return rows[0] ? this.toRecord(rows[0]) : null;
   }
 
+  /**
+   * Возвращает заказы конкретного пользователя.
+   */
   async findByUserId(
     userId: number,
     query: ListOrdersQueryDto,
@@ -149,6 +166,9 @@ export class OrdersRepository {
     return this.findByForeignKey('user_id', userId, query);
   }
 
+  /**
+   * Возвращает заказы, связанные с конкретной картой.
+   */
   async findByMapId(
     mapId: number,
     query: ListOrdersQueryDto,
@@ -156,6 +176,9 @@ export class OrdersRepository {
     return this.findByForeignKey('map_id', mapId, query);
   }
 
+  /**
+   * Обновляет статус заказа и возвращает актуальную запись.
+   */
   async updateStatus(
     id: number,
     status: OrderStatus,
@@ -168,22 +191,30 @@ export class OrdersRepository {
     return this.findById(id);
   }
 
+  /**
+   * Общий helper для выборки заказов по внешнему ключу.
+   *
+   * Имя колонки ограничено union-типом, поэтому пользовательский ввод не может
+   * попасть в SQL как имя поля.
+   */
   private async findByForeignKey(
     columnName: 'user_id' | 'map_id',
     value: number,
     query: ListOrdersQueryDto,
   ): Promise<OrderRecord[]> {
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
     const where = [`${columnName} = ?`];
-    const values: SqlValue[] = [value];
+    const values: SqlValue[] = [Number(value)];
 
     if (query.status) {
       where.push('status = ?');
       values.push(query.status);
     }
 
-    values.push(query.limit ?? 20, query.offset ?? 0);
+    values.push(limit, offset);
 
-    const [rows] = await this.pool.execute<OrderRow[]>(
+    const [rows] = await this.pool.query<OrderRow[]>(
       `
         SELECT
           id,
@@ -204,6 +235,9 @@ export class OrdersRepository {
     return rows.map(this.toRecord);
   }
 
+  /**
+   * Возвращает созданный заказ или падает, если insert не дал читаемой записи.
+   */
   private async findByIdOrThrow(id: number): Promise<OrderRecord> {
     const order = await this.findById(id);
 
@@ -214,6 +248,9 @@ export class OrdersRepository {
     return order;
   }
 
+  /**
+   * Преобразует snake_case строку MySQL в camelCase доменный тип.
+   */
   private toRecord(row: OrderRow): OrderRecord {
     return {
       id: row.id,

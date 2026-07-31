@@ -100,6 +100,16 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
       }
 
       return result;
+    } catch (error) {
+      this.logger.error(
+        `OutboxPublisher tick failed: error=${this.toErrorMessage(error)}`,
+      );
+
+      return {
+        claimed: 0,
+        processed: 0,
+        failed: 0,
+      };
     } finally {
       this.isRunning = false;
     }
