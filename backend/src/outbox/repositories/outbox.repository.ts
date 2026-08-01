@@ -1,11 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ResultSetHeader } from 'mysql2';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { ListOutboxEventsQueryDto } from '../dto/list-outbox-events-query.dto';
 import { OutboxEventStatus } from '../dto/outbox-event-status.dto';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
 import { OutboxEventRow } from '../types/outbox-event-row.type';
+import { OutboxStatusCount } from '../types/outbox-status-count.type';
+
+type OutboxStatusCountRow = RowDataPacket & {
+  status: OutboxEventStatus;
+  count: number;
+};
 
 /**
  * Repository Outbox.
@@ -144,6 +150,26 @@ export class OutboxRepository {
     );
 
     return rows[0] ? this.toRecord(rows[0]) : null;
+  }
+
+  /**
+   * Возвращает количество Outbox-событий по статусам.
+   */
+  async countByStatus(): Promise<OutboxStatusCount[]> {
+    const [rows] = await this.pool.query<OutboxStatusCountRow[]>(
+      `
+        SELECT
+          status,
+          COUNT(*) AS count
+        FROM outbox_events
+        GROUP BY status
+      `,
+    );
+
+    return rows.map((row) => ({
+      status: row.status,
+      count: Number(row.count),
+    }));
   }
 
   /**

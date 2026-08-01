@@ -1,11 +1,13 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger as NestLogger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+  app.useLogger(app.get(Logger));
+  const logger = new NestLogger('Bootstrap');
   const port = Number(process.env.APP_PORT ?? process.env.PORT ?? 3000);
   const host = process.env.APP_HOST ?? 'localhost';
 

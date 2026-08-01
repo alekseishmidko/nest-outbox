@@ -1,4 +1,5 @@
 import { OutboxEventStatus } from '../dto/outbox-event-status.dto';
+import { MetricsService } from '../../metrics/services/metrics.service';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
 import { OutboxPublisher } from './outbox-publisher';
@@ -10,6 +11,11 @@ jest.mock('../services/outbox.service', () => ({
 type OutboxServiceMock = {
   handleEvent: jest.Mock<Promise<void>, [OutboxEventRecord]>;
 };
+
+type MetricsServiceMock = Pick<
+  jest.Mocked<MetricsService>,
+  'observeOutboxProcessed' | 'observeOutboxFailed' | 'setOutboxStatusCount'
+>;
 
 function createEvent(
   overrides: Partial<OutboxEventRecord> = {},
@@ -36,9 +42,13 @@ function createEvent(
 
 describe('OutboxPublisher', () => {
   let repository: jest.Mocked<
-    Pick<OutboxRepository, 'claimDueEvents' | 'markProcessed' | 'markFailed'>
+    Pick<
+      OutboxRepository,
+      'claimDueEvents' | 'markProcessed' | 'markFailed' | 'countByStatus'
+    >
   >;
   let service: OutboxServiceMock;
+  let metricsService: MetricsServiceMock;
 
   beforeEach(() => {
     process.env.OUTBOX_POLL_INTERVAL_MS = '10000';
@@ -50,9 +60,15 @@ describe('OutboxPublisher', () => {
       claimDueEvents: jest.fn(),
       markProcessed: jest.fn(),
       markFailed: jest.fn(),
+      countByStatus: jest.fn().mockResolvedValue([]),
     };
     service = {
       handleEvent: jest.fn(),
+    };
+    metricsService = {
+      observeOutboxProcessed: jest.fn(),
+      observeOutboxFailed: jest.fn(),
+      setOutboxStatusCount: jest.fn(),
     };
   });
 
@@ -68,6 +84,7 @@ describe('OutboxPublisher', () => {
     return new OutboxPublisher(
       repository as unknown as OutboxRepository,
       service as never,
+      metricsService as unknown as MetricsService,
     );
   }
 
@@ -84,6 +101,10 @@ describe('OutboxPublisher', () => {
     expect(repository.claimDueEvents).toHaveBeenCalledWith(10);
     expect(service.handleEvent).toHaveBeenCalledWith(event);
     expect(repository.markProcessed).toHaveBeenCalledWith(event.id);
+    expect(metricsService.observeOutboxProcessed).toHaveBeenCalledWith(
+      event.eventType,
+      expect.any(Number),
+    );
     expect(repository.markFailed).not.toHaveBeenCalled();
     expect(result).toEqual({
       claimed: 1,
@@ -109,6 +130,10 @@ describe('OutboxPublisher', () => {
       2,
       'media failed',
       new Date('2026-01-01T00:00:02.000Z'),
+    );
+    expect(metricsService.observeOutboxFailed).toHaveBeenCalledWith(
+      event.eventType,
+      expect.any(Number),
     );
     expect(repository.markProcessed).not.toHaveBeenCalled();
     expect(result).toEqual({

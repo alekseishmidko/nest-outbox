@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { MetricsService } from '../../metrics/services/metrics.service';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { OutboxService } from '../services/outbox.service';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
@@ -27,6 +28,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly outboxRepository: OutboxRepository,
     private readonly outboxService: OutboxService,
+    private readonly metricsService: MetricsService,
   ) {
     this.config = parseOutboxPublisherConfig();
   }
@@ -99,6 +101,8 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
         );
       }
 
+      await this.refreshOutboxStatusMetrics();
+
       return result;
     } catch (error) {
       this.logger.error(
@@ -116,9 +120,15 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processEvent(event: OutboxEventRecord): Promise<boolean> {
+    const startedAt = process.hrtime.bigint();
+
     try {
       await this.outboxService.handleEvent(event);
       await this.outboxRepository.markProcessed(event.id);
+      this.metricsService.observeOutboxProcessed(
+        event.eventType,
+        this.getDurationSeconds(startedAt),
+      );
       return true;
     } catch (error) {
       const attempts = event.attempts + 1;
@@ -134,6 +144,10 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
         message,
         nextRetryAt,
       );
+      this.metricsService.observeOutboxFailed(
+        event.eventType,
+        this.getDurationSeconds(startedAt),
+      );
 
       this.logger.error(
         `Outbox event failed: eventId=${event.id}, attempts=${attempts}, nextRetryAt=${nextRetryAt?.toISOString() ?? 'null'}, error=${message}`,
@@ -145,6 +159,18 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
 
   private getRetryDelayMs(attempts: number): number {
     return this.config.retryBaseDelayMs * 2 ** Math.max(attempts - 1, 0);
+  }
+
+  private getDurationSeconds(startedAt: bigint): number {
+    return Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
+  }
+
+  private async refreshOutboxStatusMetrics(): Promise<void> {
+    const statusCounts = await this.outboxRepository.countByStatus();
+
+    for (const item of statusCounts) {
+      this.metricsService.setOutboxStatusCount(item.status, item.count);
+    }
   }
 
   private toErrorMessage(error: unknown): string {

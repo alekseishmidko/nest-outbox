@@ -251,18 +251,18 @@
 
 ## 9. Метрики, логгирование и визуализация
 
-- [ ] Подключить структурное логгирование.
+- [x] Подключить структурное логгирование.
   - Рекомендация: `nestjs-pino`.
   - Цель: JSON-логи, correlation id, уровень логов через env.
 
-- [ ] Добавить request logging.
+- [x] Добавить request logging.
   - Метод.
   - URL.
   - Status code.
   - Latency.
   - Request id.
 
-- [ ] Добавить метрики Prometheus.
+- [x] Добавить метрики Prometheus.
   - HTTP latency.
   - HTTP request count.
   - Outbox processed count.
@@ -270,12 +270,12 @@
   - Outbox processing duration.
   - DB query duration, если выбранная библиотека позволяет.
 
-- [ ] Добавить endpoint `/metrics`.
+- [x] Добавить endpoint `/metrics`.
 
-- [ ] Добавить Grafana в Docker Compose.
+- [x] Добавить Grafana в Docker Compose.
   - Цель: визуализация метрик.
 
-- [ ] Создать dashboard.
+- [x] Создать dashboard.
   - HTTP RPS.
   - Latency p50/p95/p99.
   - Error rate.
@@ -393,7 +393,7 @@
   - Какие сценарии есть.
   - Как читать результаты.
 
-- [ ] Создать `docs/observability.md`.
+- [x] Создать `docs/observability.md`.
   - Логи.
   - Метрики.
   - Prometheus.
@@ -439,7 +439,7 @@
 - [ ] Этап 7: таблица Outbox и запись события в транзакции.
 - [ ] Этап 8: Outbox worker, retry, блокировки.
 - [ ] Этап 9: генерация QR-code/avatar через события.
-- [ ] Этап 10: логгирование, метрики, Prometheus, Grafana.
+- [x] Этап 10: логгирование, метрики, Prometheus, Grafana.
 - [ ] Этап 11: нагрузочные тесты k6.
 - [ ] Этап 12: оптимизация SQL на основе метрик и `EXPLAIN ANALYZE`.
 - [ ] Этап 13: расширение тестов.
@@ -461,10 +461,10 @@
 - [ ] Создание заказа и запись Outbox-события выполняются в одной транзакции.
 - [ ] Outbox worker обрабатывает события без брокера.
 - [ ] Есть retry и обработка ошибок Outbox.
-- [ ] Есть структурные логи.
-- [ ] Есть `/metrics`.
-- [ ] Prometheus собирает метрики.
-- [ ] Grafana показывает dashboard.
+- [x] Есть структурные логи.
+- [x] Есть `/metrics`.
+- [x] Prometheus собирает метрики.
+- [x] Grafana показывает dashboard.
 - [ ] Есть k6-сценарии.
 - [ ] Есть unit, integration и e2e тесты.
 - [ ] Есть документация по каждому модулю.

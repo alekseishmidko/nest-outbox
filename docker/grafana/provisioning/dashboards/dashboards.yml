@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Nest Outbox
+    orgId: 1
+    folder: Nest Outbox
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
