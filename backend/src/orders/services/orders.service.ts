@@ -5,6 +5,7 @@ import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { OrdersRepository } from '../repositories/orders.repository';
+import { OrderOverviewRecord } from '../types/order-overview-record.type';
 import { OrderRecord } from '../types/order-record.type';
 
 /**
@@ -33,6 +34,13 @@ export class OrdersService {
 
   findAll(query: ListOrdersQueryDto): Promise<OrderRecord[]> {
     return this.ordersRepository.findAll(query);
+  }
+
+  /**
+   * Возвращает отчет заказов с JOIN-данными пользователя и карты.
+   */
+  findOverview(query: ListOrdersQueryDto): Promise<OrderOverviewRecord[]> {
+    return this.ordersRepository.findOverview(query);
   }
 
   async findById(id: number): Promise<OrderRecord> {

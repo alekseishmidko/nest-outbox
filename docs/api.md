@@ -59,6 +59,7 @@ Repository:
 | --- | --- | --- |
 | `POST` | `/orders` | Создать заказ и Outbox-событие в одной транзакции |
 | `GET` | `/orders` | Получить список заказов |
+| `GET` | `/orders/reports/overview` | Получить отчет заказов с JOIN между users, maps и orders |
 | `GET` | `/orders/:id` | Получить заказ по ID |
 | `PATCH` | `/orders/:id/status` | Изменить статус заказа |
 | `GET` | `/orders/users/:userId` | Получить заказы пользователя |

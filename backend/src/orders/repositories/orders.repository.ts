@@ -5,6 +5,8 @@ import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { OrderStatus } from '../dto/order-status.dto';
+import { OrderOverviewRecord } from '../types/order-overview-record.type';
+import { OrderOverviewRow } from '../types/order-overview-row.type';
 import { OrderRecord } from '../types/order-record.type';
 import { OrderRow } from '../types/order-row.type';
 import { SqlValue } from '../types/sql-value.type';
@@ -130,6 +132,54 @@ export class OrdersRepository {
     );
 
     return rows.map(this.toRecord);
+  }
+
+  /**
+   * Возвращает отчетный список заказов с данными пользователя и карты.
+   *
+   * Этот запрос нужен для тренировки JOIN, анализа `EXPLAIN ANALYZE` и
+   * нагрузочного тестирования чтения связанных данных.
+   */
+  async findOverview(
+    query: ListOrdersQueryDto,
+  ): Promise<OrderOverviewRecord[]> {
+    const limit = Number(query.limit ?? 20);
+    const offset = Number(query.offset ?? 0);
+    const values: SqlValue[] = [];
+    const where: string[] = [];
+
+    if (query.status) {
+      where.push('o.status = ?');
+      values.push(query.status);
+    }
+
+    values.push(limit, offset);
+
+    const [rows] = await this.pool.query<OrderOverviewRow[]>(
+      `
+        SELECT
+          o.id AS order_id,
+          o.status,
+          o.total_amount,
+          o.created_at,
+          u.id AS user_id,
+          u.email AS user_email,
+          u.name AS user_name,
+          m.id AS map_id,
+          m.title AS map_title,
+          m.latitude,
+          m.longitude
+        FROM orders o
+        JOIN users u ON u.id = o.user_id
+        JOIN maps m ON m.id = o.map_id
+        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+        ORDER BY o.created_at DESC
+        LIMIT ? OFFSET ?
+      `,
+      values,
+    );
+
+    return rows.map(this.toOverviewRecord);
   }
 
   /**
@@ -260,6 +310,29 @@ export class OrdersRepository {
       totalAmount: row.total_amount,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  /**
+   * Преобразует результат JOIN-выборки в вложенный объект API.
+   */
+  private toOverviewRecord(row: OrderOverviewRow): OrderOverviewRecord {
+    return {
+      orderId: row.order_id,
+      status: row.status,
+      totalAmount: row.total_amount,
+      createdAt: row.created_at,
+      user: {
+        id: row.user_id,
+        email: row.user_email,
+        name: row.user_name,
+      },
+      map: {
+        id: row.map_id,
+        title: row.map_title,
+        latitude: row.latitude,
+        longitude: row.longitude,
+      },
     };
   }
 }

@@ -9,7 +9,7 @@
     "db:migrate": "bun src/database/migration-runner/run-migrations.ts",
     "db:reset": "bun src/database/migration-runner/reset-database.ts",
     "db:seed": "bun src/seed/commands/seed-database.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
