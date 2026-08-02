@@ -33,6 +33,14 @@ export class OrdersController {
     return this.ordersService.findAll(query);
   }
 
+  @Get('reports/overview')
+  @ApiOperation({
+    summary: 'Получить отчет заказов с JOIN между users, maps и orders',
+  })
+  findOverview(@Query() query: ListOrdersQueryDto) {
+    return this.ordersService.findOverview(query);
+  }
+
   @Get('users/:userId')
   @ApiOperation({ summary: 'Получить заказы пользователя' })
   findByUserId(
