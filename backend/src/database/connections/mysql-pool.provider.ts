@@ -40,14 +40,14 @@ export function createMysqlPoolProvider(): Provider<Pool> {
 }
 
 function instrumentPool(pool: Pool): Pool {
-  const instrumented = pool as Pool & {
-    execute: (...args: unknown[]) => Promise<unknown>;
-    query: (...args: unknown[]) => Promise<unknown>;
-  };
-  const originalExecute = instrumented.execute.bind(pool);
-  const originalQuery = instrumented.query.bind(pool);
+  const originalExecute = pool.execute.bind(pool) as (
+    ...args: Parameters<Pool['execute']>
+  ) => ReturnType<Pool['execute']>;
+  const originalQuery = pool.query.bind(pool) as (
+    ...args: Parameters<Pool['query']>
+  ) => ReturnType<Pool['query']>;
 
-  instrumented.execute = async (...args: unknown[]) => {
+  const executeWithMetrics = (async (...args: Parameters<Pool['execute']>) => {
     const end = dbQueryDurationSeconds.startTimer({ operation: 'execute' });
 
     try {
@@ -55,9 +55,9 @@ function instrumentPool(pool: Pool): Pool {
     } finally {
       end();
     }
-  };
+  }) as Pool['execute'];
 
-  instrumented.query = async (...args: unknown[]) => {
+  const queryWithMetrics = (async (...args: Parameters<Pool['query']>) => {
     const end = dbQueryDurationSeconds.startTimer({ operation: 'query' });
 
     try {
@@ -65,7 +65,10 @@ function instrumentPool(pool: Pool): Pool {
     } finally {
       end();
     }
-  };
+  }) as Pool['query'];
 
-  return instrumented;
+  pool.execute = executeWithMetrics;
+  pool.query = queryWithMetrics;
+
+  return pool;
 }
