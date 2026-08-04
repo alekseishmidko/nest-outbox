@@ -17,10 +17,12 @@
     "start:prod": "bun dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "lint:check": "eslint \"{src,test}/**/*.ts\"",
-    "test": "jest",
+    "test": "jest --testPathIgnorePatterns integration-spec e2e-spec performance-spec",
+    "test:integration": "RUN_INTEGRATION_TESTS=true jest --runInBand --testRegex \".*\\.integration-spec\\.ts$\"",
+    "test:performance": "RUN_PERFORMANCE_TESTS=true jest --runInBand --testRegex \".*\\.performance-spec\\.ts$\"",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "RUN_E2E_TESTS=true jest --runInBand --testRegex \".*\\.e2e-spec\\.ts$\""
   },
   "dependencies": {
     "@dicebear/collection": "9.4.2",
