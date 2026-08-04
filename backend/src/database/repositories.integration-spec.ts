@@ -1,0 +1,174 @@
+import { Pool } from 'mysql2/promise';
+import { MapsRepository } from '../maps/repositories/maps.repository';
+import { MediaRepository } from '../media/repositories/media.repository';
+import { OrdersRepository } from '../orders/repositories/orders.repository';
+import { OrderStatus } from '../orders/dto/order-status.dto';
+import { OutboxEventStatus } from '../outbox/dto/outbox-event-status.dto';
+import { OutboxRepository } from '../outbox/repositories/outbox.repository';
+import { UsersRepository } from '../users/repositories/users.repository';
+import {
+  createDatabaseTestKit,
+  isDatabaseTestEnabled,
+} from '../test-utils/database-test-kit';
+
+const describeIntegration = isDatabaseTestEnabled('RUN_INTEGRATION_TESTS')
+  ? describe
+  : describe.skip;
+
+describeIntegration('Repositories integration', () => {
+  let kit: Awaited<ReturnType<typeof createDatabaseTestKit>>;
+  let pool: Pool;
+  let usersRepository: UsersRepository;
+  let mapsRepository: MapsRepository;
+  let ordersRepository: OrdersRepository;
+  let mediaRepository: MediaRepository;
+  let outboxRepository: OutboxRepository;
+
+  beforeAll(async () => {
+    kit = await createDatabaseTestKit('repositories_integration');
+    pool = kit.pool;
+    usersRepository = new UsersRepository(pool);
+    mapsRepository = new MapsRepository(pool);
+    ordersRepository = new OrdersRepository(pool);
+    mediaRepository = new MediaRepository(pool);
+    outboxRepository = new OutboxRepository(pool);
+  });
+
+  beforeEach(async () => {
+    await kit.resetTables();
+  });
+
+  afterAll(async () => {
+    if (kit) {
+      await kit.destroy();
+    }
+  });
+
+  it('выполняет реальные SQL-запросы users, maps, orders, media и outbox', async () => {
+    const user = await usersRepository.create({
+      email: 'repo-user@example.com',
+      name: 'Repo User',
+      avatarSeed: 'repo-seed',
+    });
+    const map = await mapsRepository.create({
+      title: 'Repo Map',
+      description: 'Repository integration map',
+      latitude: 40.785091,
+      longitude: -73.968285,
+      ownerUserId: user.id,
+    });
+    const order = await ordersRepository.createWithOutbox({
+      userId: user.id,
+      mapId: map.id,
+      totalAmount: 199.9,
+    });
+    const avatarOwner = await mediaRepository.findUserForAvatar(user.id);
+    const qrOwner = await mediaRepository.findMapForQr(map.id);
+    const asset = await mediaRepository.createAsset({
+      ownerType: 'user',
+      ownerId: user.id,
+      type: 'avatar',
+      mimeType: 'image/svg+xml',
+      storageType: 'database',
+      contentBase64: Buffer.from('<svg />').toString('base64'),
+      filePath: null,
+      metadata: { source: 'integration' },
+    });
+    const outboxEvents = await outboxRepository.findAll({
+      status: OutboxEventStatus.Pending,
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(user.id).toBeGreaterThan(0);
+    expect(map.ownerUserId).toBe(user.id);
+    expect(order.status).toBe(OrderStatus.Pending);
+    expect(avatarOwner?.avatar_seed).toBe('repo-seed');
+    expect(qrOwner?.title).toBe('Repo Map');
+    expect(asset.ownerId).toBe(user.id);
+    expect(outboxEvents).toHaveLength(1);
+    expect(outboxEvents[0]?.eventType).toBe('order.created');
+  });
+
+  it('откатывает все изменения при ошибке внутри транзакции', async () => {
+    const user = await usersRepository.create({
+      email: 'rollback-user@example.com',
+      name: 'Rollback User',
+      avatarSeed: 'rollback-seed',
+    });
+    const map = await mapsRepository.create({
+      title: 'Rollback Map',
+      latitude: 40.785091,
+      longitude: -73.968285,
+      ownerUserId: user.id,
+    });
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `
+          INSERT INTO orders (
+            user_id,
+            map_id,
+            status,
+            total_amount
+          ) VALUES (?, ?, ?, ?)
+        `,
+        [user.id, map.id, OrderStatus.Pending, 777.77],
+      );
+      await expect(
+        connection.execute(
+          `
+            INSERT INTO outbox_events (
+              event_type,
+              aggregate_type,
+              aggregate_id,
+              payload,
+              status,
+              attempts
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          ['broken.event', 'order', 1, '{invalid-json', 'pending', 0],
+        ),
+      ).rejects.toThrow();
+      await connection.rollback();
+    } finally {
+      connection.release();
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id FROM orders WHERE total_amount = ?',
+      [777.77],
+    );
+
+    expect(rows).toEqual([]);
+  });
+
+  it('блокирует события при claim и не забирает их второй раз', async () => {
+    const user = await usersRepository.create({
+      email: 'claim-user@example.com',
+      name: 'Claim User',
+      avatarSeed: 'claim-seed',
+    });
+    const map = await mapsRepository.create({
+      title: 'Claim Map',
+      latitude: 40.785091,
+      longitude: -73.968285,
+      ownerUserId: user.id,
+    });
+
+    await ordersRepository.createWithOutbox({
+      userId: user.id,
+      mapId: map.id,
+      totalAmount: 10,
+    });
+
+    const firstClaim = await outboxRepository.claimDueEvents(10);
+    const secondClaim = await outboxRepository.claimDueEvents(10);
+
+    expect(firstClaim).toHaveLength(1);
+    expect(firstClaim[0]?.status).toBe(OutboxEventStatus.Processing);
+    expect(secondClaim).toHaveLength(0);
+  });
+});
