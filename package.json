@@ -10,6 +10,7 @@
     "docker:logs": "docker compose -f docker/docker-compose.local.yml logs -f",
     "load:smoke": "docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v \"$PWD/load-tests:/scripts\" grafana/k6:0.54.0 run /scripts/smoke.js",
     "load:load": "docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v \"$PWD/load-tests:/scripts\" grafana/k6:0.54.0 run /scripts/load.js",
-    "load:stress": "docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v \"$PWD/load-tests:/scripts\" grafana/k6:0.54.0 run /scripts/stress.js"
+    "load:stress": "docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v \"$PWD/load-tests:/scripts\" grafana/k6:0.54.0 run /scripts/stress.js",
+    "load:pagination": "docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v \"$PWD/load-tests:/scripts\" grafana/k6:0.54.0 run /scripts/pagination-compare.js"
   }
 }

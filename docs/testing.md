@@ -70,11 +70,13 @@ RUN_PERFORMANCE_TESTS=true bun run test:performance
 Текущий критичный запрос:
 
 - `ordersRepository.findOverview` - JOIN между `orders`, `users`, `maps`.
+- `usersRepository.findActivity` - сложный JOIN `users -> orders -> maps -> media_assets`.
 
 Порог по умолчанию:
 
 ```bash
 PERFORMANCE_JOIN_OVERVIEW_MAX_MS=100
+PERFORMANCE_USER_ACTIVITY_MAX_MS=100
 ```
 
 Порог можно менять под конкретное окружение CI/local. Если тест начинает падать, нужно смотреть `EXPLAIN ANALYZE`, индексы и p95 в Grafana.
