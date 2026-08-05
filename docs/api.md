@@ -43,15 +43,40 @@
 | --- | --- | --- |
 | `POST` | `/users` | Создать пользователя |
 | `GET` | `/users` | Получить список пользователей |
+| `GET` | `/users/:id/activity` | Получить пользователя, его заказы, карты и media через сложный JOIN |
 | `GET` | `/users/:id` | Получить пользователя по ID |
 | `PATCH` | `/users/:id` | Обновить пользователя |
 | `DELETE` | `/users/:id` | Удалить пользователя |
+
+### `GET /users/:id/activity`
+
+Query-параметры:
+
+- `pagination=offset|cursor`
+- `limit=1..100`
+- `offset` для offset pagination
+- `cursor` для cursor pagination
+
+Пример offset:
+
+```bash
+curl "http://localhost:3000/users/1/activity?pagination=offset&limit=20&offset=0"
+```
+
+Пример cursor:
+
+```bash
+curl "http://localhost:3000/users/1/activity?pagination=cursor&limit=20"
+```
+
+Ответ содержит `items` и `pageInfo`. Для cursor pagination следующая страница берется из `pageInfo.nextCursor`.
 
 DTO:
 
 - `CreateUserDto`
 - `UpdateUserDto`
 - `ListUsersQueryDto`
+- `UserActivityQueryDto`
 
 Repository:
 

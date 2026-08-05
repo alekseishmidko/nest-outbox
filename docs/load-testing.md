@@ -13,6 +13,7 @@
 - `smoke.js` - один короткий бизнес-флоу для проверки, что API живой.
 - `load.js` - стабильная нагрузка несколько минут.
 - `stress.js` - ступенчатый рост нагрузки для поиска предела.
+- `pagination-compare.js` - сравнение offset и cursor pagination.
 - `helpers.js` - общие HTTP-запросы и бизнес-флоу.
 
 Каждая итерация выполняет:
@@ -24,6 +25,7 @@
 - генерацию QR-code;
 - чтение списков;
 - чтение отчета `GET /orders/reports/overview` с `JOIN` между `orders`, `users` и `maps`.
+- чтение отчета `GET /users/:id/activity` в режимах `offset` и `cursor`.
 
 ## Запуск
 
@@ -51,6 +53,12 @@ Stress-тест:
 bun run load:stress
 ```
 
+Сравнение offset и cursor pagination:
+
+```bash
+bun run load:pagination
+```
+
 Если `k6` установлен локально, можно запускать без Docker:
 
 ```bash
@@ -76,6 +84,42 @@ BASE_URL=http://localhost:3000 k6 run load-tests/stress.js
 - error rate;
 - Outbox pending/failed/processed;
 - DB query duration.
+
+## Сравнение offset и cursor
+
+Сценарий `pagination-compare.js` тегирует запросы:
+
+- `user_activity_offset`;
+- `user_activity_cursor`;
+- `user_activity_cursor_next`.
+
+В k6 CLI сравни `http_req_duration` по этим тегам. В Grafana сравни p95/p99 endpoint’ов, если метрики собраны после запуска сценария.
+
+Ожидаемое поведение:
+
+- На первой странице разница может быть небольшой.
+- При росте глубины страниц `offset` деградирует, потому что БД должна пропустить предыдущие строки.
+- Cursor pagination остается стабильнее, потому что условие использует `(created_at, id)` и индекс `idx_orders_user_created_id`.
+
+### Локальный прогон 2026-08-05
+
+Команда:
+
+```bash
+bun run load:pagination
+```
+
+Результат:
+
+- iterations: `390`;
+- HTTP requests: `3900`;
+- RPS: `38.83/s`;
+- error rate: `0%`;
+- overall p95: `14.38ms`;
+- `user_activity_cursor` p95: `5.99ms`;
+- `user_activity_offset` p95: `7.64ms`.
+
+Вывод по этому небольшому профилю: обе стратегии быстрые на первых страницах, cursor уже немного стабильнее. Для демонстрации деградации offset нужно отдельно запускать сценарий с глубокими страницами и большим объемом заказов на одного пользователя.
 
 ## Шаблон фиксации результатов
 

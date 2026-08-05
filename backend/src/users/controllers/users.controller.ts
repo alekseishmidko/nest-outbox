@@ -13,6 +13,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ListUsersQueryDto } from '../dto/list-users-query.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { UserActivityQueryDto } from '../dto/user-activity-query.dto';
 import { UsersService } from '../services/users.service';
 
 @ApiTags('users')
@@ -30,6 +31,18 @@ export class UsersController {
   @ApiOperation({ summary: 'Получить список пользователей' })
   findAll(@Query() query: ListUsersQueryDto) {
     return this.usersService.findAll(query);
+  }
+
+  @Get(':id/activity')
+  @ApiOperation({
+    summary:
+      'Получить пользователя, его заказы, карты и media через сложный JOIN',
+  })
+  findActivity(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: UserActivityQueryDto,
+  ) {
+    return this.usersService.findActivity(id, query);
   }
 
   @Get(':id')

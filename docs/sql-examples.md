@@ -141,6 +141,117 @@ ORDER BY o.created_at DESC;
 - индекс `idx_orders_user_id`;
 - чтение связанных бизнес-данных.
 
+### Сложный отчет пользователя: заказы, карты и media
+
+Этот запрос лежит в endpoint `GET /users/:id/activity`.
+
+```sql
+SELECT
+  u.id AS user_id,
+  u.email AS user_email,
+  u.name AS user_name,
+  o.id AS order_id,
+  o.status AS order_status,
+  o.total_amount,
+  o.created_at AS order_created_at,
+  m.id AS map_id,
+  m.title AS map_title,
+  user_avatar.id AS user_avatar_asset_id,
+  map_qr.id AS map_qr_asset_id
+FROM users AS u
+INNER JOIN orders AS o ON o.user_id = u.id
+INNER JOIN maps AS m ON m.id = o.map_id
+LEFT JOIN (
+  SELECT owner_id, MAX(id) AS asset_id
+  FROM media_assets
+  WHERE owner_type = 'user' AND type = 'avatar'
+  GROUP BY owner_id
+) AS latest_user_avatar ON latest_user_avatar.owner_id = u.id
+LEFT JOIN media_assets AS user_avatar ON user_avatar.id = latest_user_avatar.asset_id
+LEFT JOIN (
+  SELECT owner_id, MAX(id) AS asset_id
+  FROM media_assets
+  WHERE owner_type = 'map' AND type = 'qr_code'
+  GROUP BY owner_id
+) AS latest_map_qr ON latest_map_qr.owner_id = m.id
+LEFT JOIN media_assets AS map_qr ON map_qr.id = latest_map_qr.asset_id
+WHERE u.id = 1
+ORDER BY o.created_at DESC, o.id DESC
+LIMIT 20 OFFSET 0;
+```
+
+Cursor pagination добавляет условие:
+
+```sql
+AND (o.created_at < ? OR (o.created_at = ? AND o.id < ?))
+```
+
+Что тренируется:
+
+- `INNER JOIN` и `LEFT JOIN`;
+- derived tables для выбора последнего media asset;
+- offset pagination;
+- cursor pagination через `(o.created_at, o.id)`;
+- оптимизация сортировки и фильтрации composite index.
+
+## EXPLAIN ANALYZE сложного JOIN
+
+### До индекса
+
+Снято до миграции `002_optimize_user_activity_report.sql`.
+
+Ключевые строки плана:
+
+```text
+-> Sort: o.created_at DESC, o.id DESC
+    -> Index lookup on o using idx_orders_user_id (user_id=1)
+...
+-> Filter: (media_assets.`type` = 'avatar')
+    -> Index lookup on media_assets using idx_media_assets_owner (owner_type='user')
+...
+-> Filter: (media_assets.`type` = 'qr_code')
+    -> Index lookup on media_assets using idx_media_assets_owner (owner_type='map')
+```
+
+Что было медленно:
+
+- MySQL находил заказы пользователя по `idx_orders_user_id`, но отдельно сортировал результат по `created_at DESC, id DESC`.
+- Для media MySQL использовал индекс только по `(owner_type, owner_id)`, а `type` оставался дополнительным фильтром.
+
+### Добавленный индекс
+
+```sql
+CREATE INDEX idx_orders_user_created_id
+  ON orders (user_id, created_at DESC, id DESC);
+
+CREATE INDEX idx_media_assets_owner_type_id
+  ON media_assets (owner_type, type, owner_id, id);
+```
+
+### После индекса
+
+Ключевые строки плана:
+
+```text
+-> Index lookup on o using idx_orders_user_created_id (user_id=1)
+...
+-> Covering index lookup on media_assets using idx_media_assets_owner_type_id (owner_type='user', type='avatar')
+...
+-> Covering index lookup on media_assets using idx_media_assets_owner_type_id (owner_type='map', type='qr_code')
+```
+
+Что изменилось:
+
+- Отдельный `Sort` исчез: порядок `ORDER BY o.created_at DESC, o.id DESC` покрыт индексом `idx_orders_user_created_id`.
+- Media lookup стал covering lookup по `(owner_type, type, owner_id, id)`.
+- Estimated cost на локальном плане снизился с `8.97` до `6.12`.
+- Actual time на пустой странице снизился примерно с `5.07 ms` до `0.0168 ms`.
+
+Вывод:
+
+- Для offset pagination индекс убирает сортировку, но глубокие `OFFSET` страницы все равно требуют пройти предыдущие строки.
+- Cursor pagination лучше под стабильной нагрузкой, потому что использует позицию последней строки и не заставляет MySQL пропускать растущий offset.
+
 ## GROUP BY для статистики заказов
 
 ### Количество и сумма заказов по статусам

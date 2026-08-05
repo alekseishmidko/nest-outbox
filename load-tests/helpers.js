@@ -93,9 +93,31 @@ export function readLists(userId, mapId) {
   request('list_users', 'GET', '/users?limit=20&offset=0', null);
   request('list_maps', 'GET', '/maps?limit=20&offset=0', null);
   request('list_orders', 'GET', '/orders?limit=20&offset=0', null);
-  request('orders_by_user', 'GET', `/orders/users/${userId}?limit=20&offset=0`, null);
+  request(
+    'orders_by_user',
+    'GET',
+    `/orders/users/${userId}?limit=20&offset=0`,
+    null,
+  );
   request('orders_by_map', 'GET', `/orders/maps/${mapId}?limit=20&offset=0`, null);
-  request('orders_join_overview', 'GET', '/orders/reports/overview?limit=20&offset=0', null);
+  request(
+    'orders_join_overview',
+    'GET',
+    '/orders/reports/overview?limit=20&offset=0',
+    null,
+  );
+  request(
+    'user_activity_offset',
+    'GET',
+    `/users/${userId}/activity?pagination=offset&limit=20&offset=0`,
+    null,
+  );
+  request(
+    'user_activity_cursor',
+    'GET',
+    `/users/${userId}/activity?pagination=cursor&limit=20`,
+    null,
+  );
 }
 
 export function runBusinessFlow() {

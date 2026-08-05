@@ -114,9 +114,21 @@ describeE2e('API e2e', () => {
       .expect((response) => {
         expect(response.body.status).toBe(OutboxEventStatus.Processed);
       });
+    const offsetActivityResponse = await request(server)
+      .get(`/users/${userId}/activity`)
+      .query({ pagination: 'offset', limit: 1, offset: 0 })
+      .expect(200);
+    const cursorActivityResponse = await request(server)
+      .get(`/users/${userId}/activity`)
+      .query({ pagination: 'cursor', limit: 1 })
+      .expect(200);
 
     expect(orderResponse.body.id).toBeGreaterThan(0);
     expect(publishResult.processed).toBe(1);
+    expect(offsetActivityResponse.body.items).toHaveLength(1);
+    expect(offsetActivityResponse.body.pageInfo.pagination).toBe('offset');
+    expect(cursorActivityResponse.body.items).toHaveLength(1);
+    expect(cursorActivityResponse.body.pageInfo.pagination).toBe('cursor');
   });
 
   it('возвращает единый формат ошибки валидации', async () => {

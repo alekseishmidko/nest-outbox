@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createPool, Pool } from 'mysql2/promise';
 
@@ -64,12 +64,7 @@ export async function createDatabaseTestKit(
     waitForConnections: true,
     connectionLimit: 10,
   });
-  const migrationSql = await readFile(
-    join(process.cwd(), 'database', 'migrations', '001_create_core_tables.sql'),
-    'utf8',
-  );
-
-  await pool.query(migrationSql);
+  await applyMigrations(pool);
 
   return {
     databaseName,
@@ -122,5 +117,21 @@ function sanitizeIdentifier(value: string): string {
 function assertSafeIdentifier(value: string): void {
   if (!/^[a-zA-Z0-9_]+$/.test(value)) {
     throw new Error(`Unsafe MySQL identifier for test database: ${value}`);
+  }
+}
+
+/**
+ * Применяет все SQL-миграции в тестовую БД в том же порядке, что production runner.
+ */
+async function applyMigrations(pool: Pool): Promise<void> {
+  const migrationsDir = join(process.cwd(), 'database', 'migrations');
+  const migrationFiles = (await readdir(migrationsDir))
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .sort((left, right) => left.localeCompare(right));
+
+  for (const fileName of migrationFiles) {
+    const sql = await readFile(join(migrationsDir, fileName), 'utf8');
+
+    await pool.query(sql);
   }
 }

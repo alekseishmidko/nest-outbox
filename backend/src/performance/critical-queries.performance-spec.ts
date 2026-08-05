@@ -47,6 +47,23 @@ describePerformance('Critical SQL performance', () => {
     expect(durationMs).toBeLessThan(maxMs);
   });
 
+  it('выполняет сложный activity JOIN пользователя быстрее допустимого порога', async () => {
+    const maxMs = Number(process.env.PERFORMANCE_USER_ACTIVITY_MAX_MS ?? 100);
+    const startedAt = performance.now();
+
+    const page = await usersRepository.findActivity(1, {
+      pagination: 'cursor',
+      limit: 50,
+      offset: 0,
+      cursor: null,
+    });
+
+    const durationMs = performance.now() - startedAt;
+
+    expect(page.items).toHaveLength(1);
+    expect(durationMs).toBeLessThan(maxMs);
+  });
+
   async function seedCriticalQueryData(): Promise<void> {
     for (let index = 0; index < 60; index += 1) {
       const user = await usersRepository.create({
