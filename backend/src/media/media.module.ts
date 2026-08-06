@@ -5,6 +5,7 @@ import { AvatarGenerator } from './generators/avatar.generator';
 import { QrCodeGenerator } from './generators/qr-code.generator';
 import { MediaRepository } from './repositories/media.repository';
 import { MediaService } from './services/media.service';
+import { MediaStorageService } from './storage/media-storage.service';
 
 /**
  * Модуль медиа.
@@ -14,7 +15,13 @@ import { MediaService } from './services/media.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [MediaController],
-  providers: [AvatarGenerator, QrCodeGenerator, MediaRepository, MediaService],
+  providers: [
+    AvatarGenerator,
+    QrCodeGenerator,
+    MediaRepository,
+    MediaService,
+    MediaStorageService,
+  ],
   exports: [MediaService],
 })
 export class MediaModule {}

@@ -23,13 +23,57 @@
 
 Результат генерации сохраняется в таблицу `media_assets`.
 
-Для текущего этапа используется `storage_type = database`:
+Режим выбирается через `MEDIA_STORAGE_MODE`.
+
+### `database`
+
+```env
+MEDIA_STORAGE_MODE=database
+```
 
 - `content_base64`: base64-представление SVG или PNG.
 - `file_path`: `NULL`.
 - `metadata`: JSON с технической информацией генерации.
 
-В будущем можно добавить `storage_type = file` или `storage_type = external`, не меняя внешний API модуля.
+Подходит для учебного старта и простых проверок через Adminer. Минус: БД быстро растет, а большие ответы тяжелее читать.
+
+### `local-file`
+
+```env
+MEDIA_STORAGE_MODE=local-file
+MEDIA_LOCAL_STORAGE_DIR=/app/storage/media
+MEDIA_PUBLIC_BASE_URL=http://localhost:9000/media-assets
+```
+
+- `content_base64`: `NULL`.
+- `file_path`: путь до файла внутри контейнера.
+- `metadata.objectKey`: относительный ключ объекта.
+- `metadata.publicUrl`: публичный URL, если задан `MEDIA_PUBLIC_BASE_URL`.
+
+В Docker Compose каталог `/app/storage/media` вынесен в отдельный volume.
+
+### `s3-compatible`
+
+```env
+MEDIA_STORAGE_MODE=s3-compatible
+S3_ENDPOINT=http://minio:9000
+S3_REGION=us-east-1
+S3_BUCKET=media-assets
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin
+S3_FORCE_PATH_STYLE=true
+```
+
+- `content_base64`: `NULL`.
+- `file_path`: object key в bucket.
+- `storage_type`: `external`.
+- `metadata.bucket`: bucket.
+- `metadata.objectKey`: object key.
+- `metadata.endpoint`: S3-compatible endpoint.
+
+Для local/prod Docker Compose добавлен MinIO. Bucket создает сервис `minio-init`.
+
+HTTP/controller слой не выбирает storage backend и не знает деталей записи файла или S3 object. Контроллер вызывает только `MediaService`, а выбор backend инкапсулирован в `MediaStorageService`.
 
 ## API
 
@@ -50,7 +94,7 @@
 Ответ содержит:
 
 - `asset`: сохраненная запись `media_assets`.
-- `dataUrl`: готовый `data:image/svg+xml;base64,...`.
+- `dataUrl`: готовый `data:image/svg+xml;base64,...`, сформированный из результата генерации независимо от storage mode.
 
 ### POST `/media/maps/:mapId/qr`
 
@@ -81,7 +125,7 @@
 Ответ содержит:
 
 - `asset`: сохраненная запись `media_assets`.
-- `dataUrl`: готовый `data:image/png;base64,...`.
+- `dataUrl`: готовый `data:image/png;base64,...`, сформированный из результата генерации независимо от storage mode.
 
 ### GET `/media/:id`
 

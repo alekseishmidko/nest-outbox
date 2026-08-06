@@ -430,7 +430,86 @@
 - [x] Проверять DRY.
   - Общие SQL/DTO/helper-части выносить только при реальном повторении.
 
-## 15. Рекомендуемый порядок разработки
+## 15. Следующие backend-навыки
+
+- [ ] Углубить работу с транзакциями.
+  - `READ COMMITTED` vs `REPEATABLE READ`.
+  - Dirty reads, non-repeatable reads, phantom reads.
+  - Deadlock simulation.
+  - Retry при deadlock.
+  - Optimistic locking через поле `version`.
+  - Pessimistic locking через `SELECT ... FOR UPDATE`.
+
+- [ ] Углубить SQL-оптимизацию.
+  - Создать модуль `reports`.
+  - Добавить тяжелые аналитические запросы.
+  - Использовать `GROUP BY`.
+  - Использовать window functions: `ROW_NUMBER`, `RANK`, `SUM() OVER`.
+  - Сравнить `OFFSET` и cursor pagination на большом объеме данных.
+  - Фиксировать `EXPLAIN ANALYZE` до и после оптимизации.
+  - Изучить covering indexes.
+  - Изучить порядок колонок в composite indexes.
+  - Добавить пример плохого индекса и объяснить, почему он не используется.
+
+- [ ] Усилить надежность Outbox.
+  - Добавить idempotency key для обработчиков.
+  - Добавить таблицу `processed_events`.
+  - Защититься от повторной генерации media.
+  - Добавить manual retry endpoint с причиной.
+  - Добавить dead-letter статус.
+  - Описать max attempts policy.
+  - Настроить backoff strategy.
+  - Реализовать graceful shutdown worker'а.
+  - Проверить несколько backend-инстансов в Docker Compose.
+
+- [ ] Добавить Idempotency API.
+  - Поддержать header `Idempotency-Key` для `POST /orders`.
+  - Добавить таблицу `idempotency_keys`.
+  - Повторный запрос с тем же ключом должен возвращать прежний результат.
+  - Повторный запрос не должен создавать второй заказ.
+  - Добавить тесты на timeout/retry сценарий клиента.
+
+- [ ] Добавить auth и безопасность.
+  - JWT auth.
+  - Refresh tokens.
+  - Password hashing через `argon2` или `bcrypt`.
+  - Roles: `admin`, `user`.
+  - Guards.
+  - Ownership checks: пользователь не может смотреть чужие карты/заказы.
+  - Rate limiting.
+
+- [x] Расширить хранение media.
+  - Поддержать storage mode `database`.
+  - Поддержать storage mode `local-file`.
+  - Поддержать storage mode `s3-compatible`.
+  - Добавить MinIO в Docker Compose.
+  - Не раскрывать детали storage в HTTP/controller слое.
+
+- [ ] Добавить CI.
+  - GitHub Actions или локальный `ci` script.
+  - `bun run format:check`.
+  - `bun run lint:check`.
+  - `bun run build`.
+  - `bun run test`.
+  - Отдельный job для integration/e2e с MySQL service.
+
+- [ ] Улучшить migration runner.
+  - Добавить checksum миграций.
+  - Запретить изменение уже примененной миграции.
+  - Добавить `checksum` в `schema_migrations`.
+  - Добавить `execution_time_ms` в `schema_migrations`.
+  - Добавить advisory lock на время миграций.
+  - Добавить dry-run режим.
+
+- [ ] Углубить observability.
+  - Прокидывать request id в SQL logs.
+  - Добавить slow query logging на уровне приложения.
+  - Добавить dashboard по DB query duration per operation.
+  - Добавить Prometheus alerting rules.
+  - Стандартизировать structured error logs.
+  - Добавить correlation id для Outbox events.
+
+## 16. Рекомендуемый порядок разработки
 
 - [ ] Этап 1: Docker local, MySQL, DB-клиент.
 - [ ] Этап 2: схема БД, миграции, seed.
@@ -446,8 +525,14 @@
 - [ ] Этап 12: оптимизация SQL на основе метрик и `EXPLAIN ANALYZE`.
 - [ ] Этап 13: расширение тестов.
 - [ ] Этап 14: финальная документация по модулям.
+- [ ] Этап 15: Idempotency API для `POST /orders`.
+- [ ] Этап 16: Outbox idempotency и dead-letter.
+- [ ] Этап 17: Transaction isolation и deadlock demos.
+- [ ] Этап 18: Reports module с window functions.
+- [ ] Этап 19: MinIO storage для media.
+- [ ] Этап 20: CI pipeline.
 
-## 16. Definition of Done
+## 17. Definition of Done
 
 - [ ] Приложение запускается через Docker для `local`.
 - [ ] Приложение запускается через Docker для `prod`.

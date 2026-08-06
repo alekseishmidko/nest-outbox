@@ -2,7 +2,7 @@
 
 ## Цель
 
-Docker Compose поднимает локальное окружение разработки: backend, MySQL, Adminer, Prometheus и Grafana.
+Docker Compose поднимает локальное окружение разработки: backend, MySQL, Adminer, Prometheus, Grafana и MinIO.
 
 ## Локальный запуск
 
@@ -16,6 +16,24 @@ bun run docker:local
 - Adminer: `http://localhost:8080`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+
+## MinIO
+
+MinIO используется как локальное S3-compatible хранилище для режима `MEDIA_STORAGE_MODE=s3-compatible`.
+
+Данные подключения для `local`:
+
+| Поле | Значение |
+| --- | --- |
+| Endpoint | `http://localhost:9000` |
+| Console | `http://localhost:9001` |
+| Access key | `minioadmin` |
+| Secret key | `minioadmin` |
+| Bucket | `media-assets` |
+
+Bucket создается автоматически сервисом `minio-init` при запуске Docker Compose.
 
 ## Adminer
 
