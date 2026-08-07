@@ -10,6 +10,7 @@ type DatabaseTestKit = {
 };
 
 const TABLES = [
+  'idempotency_keys',
   'media_assets',
   'outbox_events',
   'orders',

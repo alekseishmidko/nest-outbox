@@ -131,6 +131,54 @@ describeE2e('API e2e', () => {
     expect(cursorActivityResponse.body.pageInfo.pagination).toBe('cursor');
   });
 
+  it('возвращает прежний заказ при повторе POST /orders с Idempotency-Key после timeout/retry клиента', async () => {
+    const server = app.getHttpServer();
+    const userResponse = await request(server)
+      .post('/users')
+      .send({
+        email: 'retry-user@example.com',
+        name: 'Retry User',
+        avatarSeed: 'retry-seed',
+      })
+      .expect(201);
+    const userId = userResponse.body.id as number;
+    const mapResponse = await request(server)
+      .post('/maps')
+      .send({
+        title: 'Retry Map',
+        description: 'Map for idempotent order retry',
+        latitude: 40.785091,
+        longitude: -73.968285,
+        ownerUserId: userId,
+      })
+      .expect(201);
+    const mapId = mapResponse.body.id as number;
+    const orderPayload = {
+      userId,
+      mapId,
+      totalAmount: 49.9,
+    };
+
+    const firstResponse = await request(server)
+      .post('/orders')
+      .set('Idempotency-Key', 'e2e-order-timeout-retry')
+      .send(orderPayload)
+      .expect(201);
+    const retryResponse = await request(server)
+      .post('/orders')
+      .set('Idempotency-Key', 'e2e-order-timeout-retry')
+      .send(orderPayload)
+      .expect(201);
+    const userOrdersResponse = await request(server)
+      .get(`/orders/users/${userId}`)
+      .query({ limit: 20, offset: 0 })
+      .expect(200);
+
+    expect(retryResponse.body).toEqual(firstResponse.body);
+    expect(userOrdersResponse.body).toHaveLength(1);
+    expect(userOrdersResponse.body[0].id).toBe(firstResponse.body.id);
+  });
+
   it('возвращает единый формат ошибки валидации', async () => {
     await request(app.getHttpServer())
       .post('/users')
