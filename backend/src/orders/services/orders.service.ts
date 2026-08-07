@@ -1,10 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { MapsService } from '../../maps/services/maps.service';
 import { UsersService } from '../../users/services/users.service';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { OrdersRepository } from '../repositories/orders.repository';
+import {
+  IdempotencyKeyConflictError,
+  IdempotencyKeyInProgressError,
+} from '../types/idempotency-error.type';
 import { OrderOverviewRecord } from '../types/order-overview-record.type';
 import { OrderRecord } from '../types/order-record.type';
 
@@ -25,11 +34,32 @@ export class OrdersService {
    * Предварительная проверка делает ошибку API понятной и не пропускает наружу
    * MySQL foreign key exception.
    */
-  async create(dto: CreateOrderDto): Promise<OrderRecord> {
+  async create(
+    dto: CreateOrderDto,
+    idempotencyKey?: string,
+  ): Promise<OrderRecord> {
+    const normalizedIdempotencyKey =
+      this.normalizeIdempotencyKey(idempotencyKey);
+
     await this.usersService.findById(dto.userId);
     await this.mapsService.findById(dto.mapId);
 
-    return this.ordersRepository.createWithOutbox(dto);
+    try {
+      return await this.ordersRepository.createWithOutbox(
+        dto,
+        normalizedIdempotencyKey,
+      );
+    } catch (error) {
+      if (error instanceof IdempotencyKeyConflictError) {
+        throw new ConflictException(error.message);
+      }
+
+      if (error instanceof IdempotencyKeyInProgressError) {
+        throw new ConflictException(error.message);
+      }
+
+      throw error;
+    }
   }
 
   findAll(query: ListOrdersQueryDto): Promise<OrderRecord[]> {
@@ -78,5 +108,24 @@ export class OrdersService {
     }
 
     return order;
+  }
+
+  /**
+   * Нормализует HTTP header `Idempotency-Key`.
+   */
+  private normalizeIdempotencyKey(idempotencyKey?: string): string | undefined {
+    const normalized = idempotencyKey?.trim();
+
+    if (!normalized) {
+      return undefined;
+    }
+
+    if (normalized.length > 255) {
+      throw new BadRequestException(
+        'Idempotency-Key не должен быть длиннее 255 символов',
+      );
+    }
+
+    return normalized;
   }
 }

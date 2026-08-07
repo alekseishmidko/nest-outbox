@@ -1,10 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { ResultSetHeader } from 'mysql2';
-import { Pool } from 'mysql2/promise';
+import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { OrderStatus } from '../dto/order-status.dto';
+import {
+  IdempotencyKeyConflictError,
+  IdempotencyKeyInProgressError,
+} from '../types/idempotency-error.type';
+import { IdempotencyKeyRow } from '../types/idempotency-key-row.type';
+import { IdempotencyKeyStatus } from '../types/idempotency-key-status.type';
 import { OrderOverviewRecord } from '../types/order-overview-record.type';
 import { OrderOverviewRow } from '../types/order-overview-row.type';
 import { OrderRecord } from '../types/order-record.type';
@@ -25,61 +32,229 @@ export class OrdersRepository {
    *
    * Если вставка события падает, транзакция откатывается и заказ не сохраняется.
    */
-  async createWithOutbox(dto: CreateOrderDto): Promise<OrderRecord> {
+  async createWithOutbox(
+    dto: CreateOrderDto,
+    idempotencyKey?: string,
+  ): Promise<OrderRecord> {
     const connection = await this.pool.getConnection();
 
     try {
       await connection.beginTransaction();
 
-      const [orderResult] = await connection.execute<ResultSetHeader>(
-        `
-          INSERT INTO orders (
-            user_id,
-            map_id,
-            status,
-            total_amount
-          ) VALUES (?, ?, ?, ?)
-        `,
-        [dto.userId, dto.mapId, OrderStatus.Pending, dto.totalAmount],
-      );
+      if (idempotencyKey) {
+        const idempotencyResult = await this.resolveIdempotencyKey(
+          connection,
+          idempotencyKey,
+          dto,
+        );
 
-      const orderId = orderResult.insertId;
+        if (idempotencyResult) {
+          await connection.commit();
+          return idempotencyResult;
+        }
+      }
 
-      await connection.execute(
-        `
-          INSERT INTO outbox_events (
-            event_type,
-            aggregate_type,
-            aggregate_id,
-            payload,
-            status,
-            attempts
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        [
-          'order.created',
-          'order',
-          orderId,
-          JSON.stringify({
-            orderId,
-            userId: dto.userId,
-            mapId: dto.mapId,
-            totalAmount: dto.totalAmount,
-          }),
-          'pending',
-          0,
-        ],
-      );
+      const order = await this.insertOrderAndOutbox(connection, dto);
+
+      if (idempotencyKey) {
+        await this.completeIdempotencyKey(connection, idempotencyKey, order);
+      }
 
       await connection.commit();
 
-      return this.findByIdOrThrow(orderId);
+      return order;
     } catch (error) {
       await connection.rollback();
       throw error;
     } finally {
       connection.release();
     }
+  }
+
+  /**
+   * Проверяет ключ идемпотентности внутри транзакции.
+   *
+   * Если ключ новый, создает запись `processing` и возвращает `null`, чтобы
+   * основной сценарий продолжил создание заказа. Если ключ уже завершен,
+   * возвращает ранее сохраненный response.
+   */
+  private async resolveIdempotencyKey(
+    connection: PoolConnection,
+    idempotencyKey: string,
+    dto: CreateOrderDto,
+  ): Promise<OrderRecord | null> {
+    const requestHash = this.createRequestHash(dto);
+    const [insertResult] = await connection.execute<ResultSetHeader>(
+      `
+        INSERT IGNORE INTO idempotency_keys (
+          idempotency_key,
+          request_hash,
+          status
+        ) VALUES (?, ?, ?)
+      `,
+      [idempotencyKey, requestHash, IdempotencyKeyStatus.Processing],
+    );
+
+    if (insertResult.affectedRows === 1) {
+      return null;
+    }
+
+    const row = await this.findIdempotencyKeyForUpdate(
+      connection,
+      idempotencyKey,
+    );
+
+    if (!row || row.request_hash !== requestHash) {
+      throw new IdempotencyKeyConflictError();
+    }
+
+    if (row.status !== IdempotencyKeyStatus.Completed || !row.response_body) {
+      throw new IdempotencyKeyInProgressError();
+    }
+
+    return this.toOrderRecordFromStoredResponse(row.response_body);
+  }
+
+  /**
+   * Создает заказ и Outbox-событие `order.created`.
+   */
+  private async insertOrderAndOutbox(
+    connection: PoolConnection,
+    dto: CreateOrderDto,
+  ): Promise<OrderRecord> {
+    const [orderResult] = await connection.execute<ResultSetHeader>(
+      `
+        INSERT INTO orders (
+          user_id,
+          map_id,
+          status,
+          total_amount
+        ) VALUES (?, ?, ?, ?)
+      `,
+      [dto.userId, dto.mapId, OrderStatus.Pending, dto.totalAmount],
+    );
+
+    const orderId = orderResult.insertId;
+
+    await connection.execute(
+      `
+        INSERT INTO outbox_events (
+          event_type,
+          aggregate_type,
+          aggregate_id,
+          payload,
+          status,
+          attempts
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        'order.created',
+        'order',
+        orderId,
+        JSON.stringify({
+          orderId,
+          userId: dto.userId,
+          mapId: dto.mapId,
+          totalAmount: dto.totalAmount,
+        }),
+        'pending',
+        0,
+      ],
+    );
+
+    return this.findByIdOrThrow(connection, orderId);
+  }
+
+  /**
+   * Помечает ключ идемпотентности завершенным и сохраняет response.
+   */
+  private async completeIdempotencyKey(
+    connection: PoolConnection,
+    idempotencyKey: string,
+    order: OrderRecord,
+  ): Promise<void> {
+    await connection.execute(
+      `
+        UPDATE idempotency_keys
+        SET
+          status = ?,
+          response_status_code = ?,
+          response_body = ?
+        WHERE idempotency_key = ?
+      `,
+      [
+        IdempotencyKeyStatus.Completed,
+        201,
+        JSON.stringify(order),
+        idempotencyKey,
+      ],
+    );
+  }
+
+  /**
+   * Блокирует строку ключа идемпотентности до конца текущей транзакции.
+   */
+  private async findIdempotencyKeyForUpdate(
+    connection: PoolConnection,
+    idempotencyKey: string,
+  ): Promise<IdempotencyKeyRow | null> {
+    const [rows] = await connection.query<IdempotencyKeyRow[]>(
+      `
+        SELECT
+          id,
+          idempotency_key,
+          request_hash,
+          status,
+          response_status_code,
+          response_body,
+          created_at,
+          updated_at
+        FROM idempotency_keys
+        WHERE idempotency_key = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [idempotencyKey],
+    );
+
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Создает hash нормализованного тела создания заказа.
+   */
+  private createRequestHash(dto: CreateOrderDto): string {
+    return createHash('sha256')
+      .update(
+        JSON.stringify({
+          userId: dto.userId,
+          mapId: dto.mapId,
+          totalAmount: dto.totalAmount,
+        }),
+      )
+      .digest('hex');
+  }
+
+  /**
+   * Восстанавливает OrderRecord из JSON, сохраненного для повторного запроса.
+   */
+  private toOrderRecordFromStoredResponse(responseBody: unknown): OrderRecord {
+    const parsed =
+      typeof responseBody === 'string'
+        ? JSON.parse(responseBody)
+        : responseBody instanceof Buffer
+          ? JSON.parse(responseBody.toString('utf8'))
+          : responseBody;
+    const record = parsed as Omit<OrderRecord, 'createdAt' | 'updatedAt'> & {
+      createdAt: string;
+      updatedAt: string;
+    };
+
+    return {
+      ...record,
+      createdAt: new Date(record.createdAt),
+      updatedAt: new Date(record.updatedAt),
+    };
   }
 
   /**
@@ -288,8 +463,27 @@ export class OrdersRepository {
   /**
    * Возвращает созданный заказ или падает, если insert не дал читаемой записи.
    */
-  private async findByIdOrThrow(id: number): Promise<OrderRecord> {
-    const order = await this.findById(id);
+  private async findByIdOrThrow(
+    connection: PoolConnection,
+    id: number,
+  ): Promise<OrderRecord> {
+    const [rows] = await connection.query<OrderRow[]>(
+      `
+        SELECT
+          id,
+          user_id,
+          map_id,
+          status,
+          total_amount,
+          created_at,
+          updated_at
+        FROM orders
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [id],
+    );
+    const order = rows[0] ? this.toRecord(rows[0]) : null;
 
     if (!order) {
       throw new Error(`Order ${id} was not found after insert`);

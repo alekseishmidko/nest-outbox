@@ -2,13 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
@@ -20,11 +21,20 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      'Ключ идемпотентности для безопасного повтора POST /orders после timeout/retry клиента.',
+  })
   @ApiOperation({
     summary: 'Создать заказ и Outbox-событие в одной транзакции',
   })
-  create(@Body() dto: CreateOrderDto) {
-    return this.ordersService.create(dto);
+  create(
+    @Body() dto: CreateOrderDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.ordersService.create(dto, idempotencyKey);
   }
 
   @Get()

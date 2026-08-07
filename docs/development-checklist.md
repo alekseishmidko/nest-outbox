@@ -462,12 +462,12 @@
   - Реализовать graceful shutdown worker'а.
   - Проверить несколько backend-инстансов в Docker Compose.
 
-- [ ] Добавить Idempotency API.
-  - Поддержать header `Idempotency-Key` для `POST /orders`.
-  - Добавить таблицу `idempotency_keys`.
-  - Повторный запрос с тем же ключом должен возвращать прежний результат.
-  - Повторный запрос не должен создавать второй заказ.
-  - Добавить тесты на timeout/retry сценарий клиента.
+- [x] Добавить Idempotency API.
+  - [x] Поддержать header `Idempotency-Key` для `POST /orders`.
+  - [x] Добавить таблицу `idempotency_keys`.
+  - [x] Повторный запрос с тем же ключом должен возвращать прежний результат.
+  - [x] Повторный запрос не должен создавать второй заказ.
+  - [x] Добавить тесты на timeout/retry сценарий клиента.
 
 - [ ] Добавить auth и безопасность.
   - JWT auth.
@@ -525,7 +525,7 @@
 - [ ] Этап 12: оптимизация SQL на основе метрик и `EXPLAIN ANALYZE`.
 - [ ] Этап 13: расширение тестов.
 - [ ] Этап 14: финальная документация по модулям.
-- [ ] Этап 15: Idempotency API для `POST /orders`.
+- [x] Этап 15: Idempotency API для `POST /orders`.
 - [ ] Этап 16: Outbox idempotency и dead-letter.
 - [ ] Этап 17: Transaction isolation и deadlock demos.
 - [ ] Этап 18: Reports module с window functions.
