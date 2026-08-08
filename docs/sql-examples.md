@@ -299,6 +299,54 @@ LIMIT 20;
 - `COALESCE` для пользователей без заказов;
 - аналитическая выборка.
 
+## Window functions для reports
+
+### Ranking пользователей по выручке
+
+```sql
+WITH user_order_stats AS (
+  SELECT
+    u.id AS user_id,
+    u.email,
+    u.name,
+    COUNT(o.id) AS orders_count,
+    COALESCE(SUM(o.total_amount), 0) AS total_amount_sum
+  FROM users AS u
+  LEFT JOIN orders AS o ON o.user_id = u.id
+  GROUP BY
+    u.id,
+    u.email,
+    u.name
+)
+SELECT
+  ROW_NUMBER() OVER (
+    ORDER BY total_amount_sum DESC, user_id ASC
+  ) AS row_num,
+  RANK() OVER (
+    ORDER BY total_amount_sum DESC
+  ) AS revenue_rank,
+  user_id,
+  email,
+  name,
+  orders_count,
+  total_amount_sum,
+  SUM(total_amount_sum) OVER (
+    ORDER BY total_amount_sum DESC, user_id ASC
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS running_revenue
+FROM user_order_stats
+ORDER BY total_amount_sum DESC, user_id ASC
+LIMIT 20;
+```
+
+Что тренируется:
+
+- `ROW_NUMBER`;
+- `RANK`;
+- `SUM() OVER`;
+- CTE через `WITH`;
+- сортировка результата после агрегации.
+
 ### Статистика заказов по картам
 
 ```sql
