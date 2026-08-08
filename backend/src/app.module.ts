@@ -10,6 +10,7 @@ import { MediaModule } from './media/media.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { OrdersModule } from './orders/orders.module';
 import { OutboxModule } from './outbox/outbox.module';
+import { ReportsModule } from './reports/reports.module';
 import { SeedModule } from './seed/seed.module';
 import { UsersModule } from './users/users.module';
 
@@ -44,6 +45,7 @@ import { UsersModule } from './users/users.module';
     MetricsModule,
     OrdersModule,
     OutboxModule,
+    ReportsModule,
     SeedModule,
     UsersModule,
   ],

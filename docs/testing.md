@@ -53,6 +53,46 @@ E2E-тесты поднимают Nest-приложение через `AppModul
 RUN_E2E_TESTS=true bun run test:e2e
 ```
 
+## CI
+
+CI настроен в `.github/workflows/ci.yml`.
+
+Workflow состоит из двух job:
+
+- `quality`: форматирование, lint, build и unit-тесты;
+- `integration-e2e`: отдельный job с MySQL service для integration/e2e тестов.
+
+Локальный быстрый прогон из корня проекта:
+
+```bash
+bun run ci
+```
+
+Команды, которые используются в quality job:
+
+```bash
+bun run format:check
+bun run lint:check
+bun run build
+bun run test
+```
+
+Для локального запуска тестов с реальной MySQL нужен запущенный MySQL и переменные:
+
+```bash
+TEST_MYSQL_HOST=127.0.0.1
+TEST_MYSQL_PORT=3306
+TEST_MYSQL_ROOT_USER=root
+TEST_MYSQL_ROOT_PASSWORD=root_password
+```
+
+После этого можно запускать:
+
+```bash
+bun run test:integration
+bun run test:e2e
+```
+
 ## Тесты транзакций
 
 Транзакционный integration-тест явно открывает транзакцию, создает заказ, провоцирует ошибку вставки Outbox-события и проверяет, что заказ не сохраняется.
@@ -77,6 +117,8 @@ RUN_PERFORMANCE_TESTS=true bun run test:performance
 ```bash
 PERFORMANCE_JOIN_OVERVIEW_MAX_MS=100
 PERFORMANCE_USER_ACTIVITY_MAX_MS=100
+PERFORMANCE_REPORT_RANKING_MAX_MS=150
+PERFORMANCE_REPORT_CURSOR_PAGE_MAX_MS=100
 ```
 
 Порог можно менять под конкретное окружение CI/local. Если тест начинает падать, нужно смотреть `EXPLAIN ANALYZE`, индексы и p95 в Grafana.

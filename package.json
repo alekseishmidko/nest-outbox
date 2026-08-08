@@ -4,6 +4,13 @@
   "private": true,
   "packageManager": "bun@1.3.14",
   "scripts": {
+    "format:check": "cd backend && bun run format:check",
+    "lint:check": "cd backend && bun run lint:check",
+    "build": "cd backend && bun run build",
+    "test": "cd backend && bun run test",
+    "test:integration": "cd backend && bun run test:integration",
+    "test:e2e": "cd backend && bun run test:e2e",
+    "ci": "bun run format:check && bun run lint:check && bun run build && bun run test",
     "docker:local": "docker compose --env-file .env.local -f docker/docker-compose.local.yml up --build",
     "docker:prod": "docker compose --env-file .env.prod -f docker/docker-compose.prod.yml up --build -d",
     "docker:down": "docker compose -f docker/docker-compose.local.yml -f docker/docker-compose.prod.yml down --remove-orphans",
