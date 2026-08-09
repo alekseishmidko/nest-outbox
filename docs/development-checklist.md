@@ -440,16 +440,16 @@
   - Optimistic locking через поле `version`.
   - Pessimistic locking через `SELECT ... FOR UPDATE`.
 
-- [ ] Углубить SQL-оптимизацию.
-  - Создать модуль `reports`.
-  - Добавить тяжелые аналитические запросы.
-  - Использовать `GROUP BY`.
-  - Использовать window functions: `ROW_NUMBER`, `RANK`, `SUM() OVER`.
-  - Сравнить `OFFSET` и cursor pagination на большом объеме данных.
-  - Фиксировать `EXPLAIN ANALYZE` до и после оптимизации.
-  - Изучить covering indexes.
-  - Изучить порядок колонок в composite indexes.
-  - Добавить пример плохого индекса и объяснить, почему он не используется.
+- [x] Углубить SQL-оптимизацию.
+  - [x] Создать модуль `reports`.
+  - [x] Добавить тяжелые аналитические запросы.
+  - [x] Использовать `GROUP BY`.
+  - [x] Использовать window functions: `ROW_NUMBER`, `RANK`, `SUM() OVER`.
+  - [x] Сравнить `OFFSET` и cursor pagination на большом объеме данных.
+  - [x] Фиксировать `EXPLAIN ANALYZE` до и после оптимизации.
+  - [x] Изучить covering indexes.
+  - [x] Изучить порядок колонок в composite indexes.
+  - [x] Добавить пример плохого индекса и объяснить, почему он не используется.
 
 - [ ] Усилить надежность Outbox.
   - Добавить idempotency key для обработчиков.
@@ -528,7 +528,7 @@
 - [x] Этап 15: Idempotency API для `POST /orders`.
 - [ ] Этап 16: Outbox idempotency и dead-letter.
 - [ ] Этап 17: Transaction isolation и deadlock demos.
-- [ ] Этап 18: Reports module с window functions.
+- [x] Этап 18: Reports module с window functions.
 - [ ] Этап 19: MinIO storage для media.
 - [ ] Этап 20: CI pipeline.
 
@@ -554,5 +554,7 @@
 - [x] Grafana показывает dashboard.
 - [x] Есть k6-сценарии.
 - [ ] Есть unit, integration и e2e тесты.
+- [x] Есть CI для format, lint, build и test.
+- [x] Есть отдельный CI job для integration/e2e с MySQL service.
 - [ ] Есть документация по каждому модулю.
 - [ ] Ключевые публичные классы и методы имеют JSDoc на русском языке.
