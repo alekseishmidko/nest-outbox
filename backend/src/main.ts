@@ -8,6 +8,7 @@ import { createApiValidationPipe } from './common/pipes/api-validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   app.useLogger(app.get(Logger));
   const logger = new NestLogger('Bootstrap');
   const port = Number(process.env.APP_PORT ?? process.env.PORT ?? 3000);

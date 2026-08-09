@@ -2,6 +2,7 @@ import { createCliPool } from '../connections/create-cli-pool';
 import { runMigrations } from './run-migrations';
 
 const tables = [
+  'processed_events',
   'idempotency_keys',
   'outbox_events',
   'media_assets',

@@ -6,4 +6,5 @@ export enum OutboxEventStatus {
   Processing = 'processing',
   Processed = 'processed',
   Failed = 'failed',
+  DeadLetter = 'dead_letter',
 }

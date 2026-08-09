@@ -3,6 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version VARCHAR(255) NOT NULL,
+  checksum CHAR(64) NULL,
+  execution_time_ms INT UNSIGNED NULL,
   applied_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (version)
 ) ENGINE = InnoDB

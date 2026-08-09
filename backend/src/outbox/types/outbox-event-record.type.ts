@@ -14,5 +14,6 @@ export type OutboxEventRecord = {
   nextRetryAt: Date | null;
   processedAt: Date | null;
   error: string | null;
+  manualRetryReason: string | null;
   createdAt: Date;
 };

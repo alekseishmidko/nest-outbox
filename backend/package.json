@@ -7,6 +7,7 @@
   "scripts": {
     "build": "nest build",
     "db:migrate": "bun src/database/migration-runner/run-migrations.ts",
+    "db:migrate:dry-run": "bun src/database/migration-runner/run-migrations.ts --dry-run",
     "db:reset": "bun src/database/migration-runner/reset-database.ts",
     "db:seed": "bun src/seed/commands/seed-database.ts",
     "format": "prettier --write \"src/**/*.ts\"",
