@@ -1,7 +1,8 @@
 name: nest-outbox
 
 services:
-  backend:
+  backend: &backend-local
+    image: ${BACKEND_IMAGE:-nest-outbox-backend:latest}
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -19,6 +20,9 @@ services:
       OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-10}
       OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-5}
       OUTBOX_RETRY_BASE_DELAY_MS: ${OUTBOX_RETRY_BASE_DELAY_MS:-1000}
+      OUTBOX_RETRY_MAX_DELAY_MS: ${OUTBOX_RETRY_MAX_DELAY_MS:-60000}
+      OUTBOX_RETRY_JITTER_MS: ${OUTBOX_RETRY_JITTER_MS:-250}
+      OUTBOX_SHUTDOWN_TIMEOUT_MS: ${OUTBOX_SHUTDOWN_TIMEOUT_MS:-10000}
       MEDIA_STORAGE_MODE: ${MEDIA_STORAGE_MODE:-database}
       MEDIA_LOCAL_STORAGE_DIR: ${MEDIA_LOCAL_STORAGE_DIR:-/app/storage/media}
       MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-http://localhost:9000/media-assets}
@@ -43,8 +47,9 @@ services:
       [
         "sh",
         "-c",
-        "bun install --frozen-lockfile && bun run db:migrate && bun run start:dev",
+        "bun install --frozen-lockfile && bun run db:migrate && exec bun run start:dev",
       ]
+    stop_signal: SIGINT
     healthcheck:
       test:
         [
@@ -55,6 +60,17 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  backend-worker:
+    <<: *backend-local
+    profiles:
+      - multi-backend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports: []
+    healthcheck:
+      disable: true
 
   mysql:
     image: mysql:8.4

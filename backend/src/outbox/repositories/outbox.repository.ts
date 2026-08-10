@@ -7,6 +7,8 @@ import { OutboxEventStatus } from '../dto/outbox-event-status.dto';
 import { OutboxEventRecord } from '../types/outbox-event-record.type';
 import { OutboxEventRow } from '../types/outbox-event-row.type';
 import { OutboxStatusCount } from '../types/outbox-status-count.type';
+import { ProcessedEventReservationResult } from '../types/processed-event-reservation-result.type';
+import { ProcessedEventRow } from '../types/processed-event-row.type';
 
 type OutboxStatusCountRow = RowDataPacket & {
   status: OutboxEventStatus;
@@ -88,6 +90,7 @@ export class OutboxRepository {
             next_retry_at,
             processed_at,
             error,
+            manual_retry_reason,
             created_at
           FROM outbox_events
           WHERE status = ?
@@ -113,6 +116,7 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          manual_retry_reason,
           created_at
         FROM outbox_events
         ORDER BY created_at DESC
@@ -141,6 +145,7 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          manual_retry_reason,
           created_at
         FROM outbox_events
         WHERE id = ?
@@ -175,9 +180,10 @@ export class OutboxRepository {
   /**
    * Сбрасывает событие в ручную повторную обработку.
    *
-   * Метод очищает ошибку, дату следующей попытки и счетчик attempts.
+   * Метод очищает ошибку, дату следующей попытки и счетчик attempts,
+   * но сохраняет причину ручного retry для аудита.
    */
-  async retry(id: number): Promise<OutboxEventRecord | null> {
+  async retry(id: number, reason: string): Promise<OutboxEventRecord | null> {
     const [result] = await this.pool.execute<ResultSetHeader>(
       `
         UPDATE outbox_events
@@ -186,10 +192,11 @@ export class OutboxRepository {
           attempts = 0,
           next_retry_at = NULL,
           processed_at = NULL,
-          error = NULL
+          error = NULL,
+          manual_retry_reason = ?
         WHERE id = ?
       `,
-      [id],
+      [reason, id],
     );
 
     if (result.affectedRows === 0) {
@@ -210,7 +217,8 @@ export class OutboxRepository {
           status = ?,
           processed_at = CURRENT_TIMESTAMP(3),
           next_retry_at = NULL,
-          error = NULL
+          error = NULL,
+          manual_retry_reason = NULL
         WHERE id = ?
       `,
       [OutboxEventStatus.Processed, id],
@@ -242,6 +250,102 @@ export class OutboxRepository {
   }
 
   /**
+   * Переводит событие в dead-letter после исчерпания retry policy.
+   */
+  async markDeadLetter(
+    id: number,
+    attempts: number,
+    error: string,
+  ): Promise<void> {
+    await this.pool.execute(
+      `
+        UPDATE outbox_events
+        SET
+          status = ?,
+          attempts = ?,
+          next_retry_at = NULL,
+          processed_at = NULL,
+          error = ?
+        WHERE id = ?
+      `,
+      [OutboxEventStatus.DeadLetter, attempts, error, id],
+    );
+  }
+
+  /**
+   * Резервирует idempotency key обработчика до выполнения side effects.
+   *
+   * Если ключ уже есть в `processed_events`, повторная генерация не запускается.
+   */
+  async reserveProcessedEvent(
+    event: OutboxEventRecord,
+    idempotencyKey: string,
+  ): Promise<ProcessedEventReservationResult> {
+    const [insertResult] = await this.pool.execute<ResultSetHeader>(
+      `
+        INSERT IGNORE INTO processed_events (
+          idempotency_key,
+          outbox_event_id,
+          event_type,
+          aggregate_type,
+          aggregate_id,
+          status
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        idempotencyKey,
+        event.id,
+        event.eventType,
+        event.aggregateType,
+        event.aggregateId,
+        'processing',
+      ],
+    );
+
+    if (insertResult.affectedRows === 1) {
+      return ProcessedEventReservationResult.Reserved;
+    }
+
+    const existing = await this.findProcessedEventByKey(idempotencyKey);
+
+    return existing?.status === 'processed'
+      ? ProcessedEventReservationResult.AlreadyProcessed
+      : ProcessedEventReservationResult.AlreadyProcessing;
+  }
+
+  /**
+   * Помечает idempotency key обработчика успешно выполненным.
+   */
+  async markProcessedEvent(idempotencyKey: string): Promise<void> {
+    await this.pool.execute(
+      `
+        UPDATE processed_events
+        SET
+          status = 'processed',
+          processed_at = CURRENT_TIMESTAMP(3)
+        WHERE idempotency_key = ?
+      `,
+      [idempotencyKey],
+    );
+  }
+
+  /**
+   * Освобождает reservation после ошибки, чтобы retry мог повторить side effect.
+   */
+  async releaseProcessedEventReservation(
+    idempotencyKey: string,
+  ): Promise<void> {
+    await this.pool.execute(
+      `
+        DELETE FROM processed_events
+        WHERE idempotency_key = ?
+          AND status = 'processing'
+      `,
+      [idempotencyKey],
+    );
+  }
+
+  /**
    * Выбирает due-события внутри транзакции и блокирует выбранные строки.
    */
   private async selectDueEventsForUpdate(
@@ -261,6 +365,7 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          manual_retry_reason,
           created_at
         FROM outbox_events
         WHERE
@@ -320,7 +425,36 @@ export class OutboxRepository {
       nextRetryAt: row.next_retry_at,
       processedAt: row.processed_at,
       error: row.error,
+      manualRetryReason: row.manual_retry_reason,
       createdAt: row.created_at,
     };
+  }
+
+  /**
+   * Ищет reservation по idempotency key.
+   */
+  private async findProcessedEventByKey(
+    idempotencyKey: string,
+  ): Promise<ProcessedEventRow | null> {
+    const [rows] = await this.pool.execute<ProcessedEventRow[]>(
+      `
+        SELECT
+          id,
+          idempotency_key,
+          outbox_event_id,
+          event_type,
+          aggregate_type,
+          aggregate_id,
+          status,
+          processed_at,
+          created_at
+        FROM processed_events
+        WHERE idempotency_key = ?
+        LIMIT 1
+      `,
+      [idempotencyKey],
+    );
+
+    return rows[0] ?? null;
   }
 }

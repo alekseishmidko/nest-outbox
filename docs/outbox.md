@@ -20,7 +20,8 @@ Outbox реализует доставку доменных событий бе�
 | `pending` | Событие готово к обработке |
 | `processing` | Событие забрано worker и сейчас обрабатывается |
 | `processed` | Событие успешно обработано |
-| `failed` | Обработка завершилась ошибкой |
+| `failed` | Обработка завершилась ошибкой, но еще будет retry |
+| `dead_letter` | Попытки исчерпаны, нужен ручной разбор |
 
 ## Polling
 
@@ -34,6 +35,9 @@ Outbox реализует доставку доменных событий бе�
 | `OUTBOX_BATCH_SIZE` | `10` | Размер пачки событий |
 | `OUTBOX_MAX_ATTEMPTS` | `5` | Максимальное число попыток |
 | `OUTBOX_RETRY_BASE_DELAY_MS` | `1000` | Базовая задержка retry |
+| `OUTBOX_RETRY_MAX_DELAY_MS` | `60000` | Максимальная задержка retry |
+| `OUTBOX_RETRY_JITTER_MS` | `0` | Случайный jitter для retry |
+| `OUTBOX_SHUTDOWN_TIMEOUT_MS` | `10000` | Сколько ждать текущий tick при shutdown |
 
 ## Блокировка
 
@@ -68,10 +72,12 @@ FOR UPDATE SKIP LOCKED;
 Задержка считается экспоненциально:
 
 ```text
-OUTBOX_RETRY_BASE_DELAY_MS * 2 ^ (attempts - 1)
+min(OUTBOX_RETRY_BASE_DELAY_MS * 2 ^ (attempts - 1), OUTBOX_RETRY_MAX_DELAY_MS)
 ```
 
-Если достигнут `OUTBOX_MAX_ATTEMPTS`, `next_retry_at` становится `NULL`, и событие остается в `failed` до ручного retry.
+Если задан `OUTBOX_RETRY_JITTER_MS`, к задержке добавляется случайное значение от `0` до `OUTBOX_RETRY_JITTER_MS`, но итоговая задержка не превышает `OUTBOX_RETRY_MAX_DELAY_MS`.
+
+Если достигнут `OUTBOX_MAX_ATTEMPTS`, событие переводится в `dead_letter`, `next_retry_at` становится `NULL`, и автоматический worker больше его не забирает.
 
 ## Ручной retry
 
@@ -81,11 +87,38 @@ Endpoint:
 POST /outbox/events/:id/retry
 ```
 
+Body:
+
+```json
+{
+  "reason": "Исправлена внешняя ошибка генерации media, можно повторить."
+}
+```
+
 Он сбрасывает:
 
 - `status` в `pending`;
 - `attempts` в `0`;
 - `next_retry_at`, `processed_at`, `error` в `NULL`.
+- `manual_retry_reason` получает переданную причину.
+
+## Idempotency обработчиков
+
+Таблица `processed_events` защищает side effects от повторной генерации.
+
+Ключ строится так:
+
+```text
+eventType:aggregateType:aggregateId
+```
+
+Например:
+
+```text
+order.created:order:123
+```
+
+Перед вызовом handler-а `OutboxService` пытается создать reservation со статусом `processing`. Если запись уже есть, повторная генерация media не запускается. После успешного handler-а reservation переводится в `processed`. При ошибке reservation удаляется, чтобы следующий retry мог повторить обработку.
 
 ## Обработчики
 
@@ -98,3 +131,12 @@ POST /outbox/events/:id/retry
 - генерирует QR-code карты.
 
 Новые типы событий нужно подключать через `OutboxService.handleEvent()`.
+
+## Graceful shutdown
+
+При остановке Nest-приложения `OutboxPublisher`:
+
+- останавливает interval polling;
+- не начинает новые tick;
+- ждет завершения текущего tick до `OUTBOX_SHUTDOWN_TIMEOUT_MS`;
+- пишет лог об остановке.

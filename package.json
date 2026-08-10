@@ -11,6 +11,8 @@
     "test:integration": "cd backend && bun run test:integration",
     "test:e2e": "cd backend && bun run test:e2e",
     "ci": "bun run format:check && bun run lint:check && bun run build && bun run test",
+    "db:migrate": "cd backend && bun run db:migrate",
+    "db:migrate:dry-run": "cd backend && bun run db:migrate:dry-run",
     "docker:local": "docker compose --env-file .env.local -f docker/docker-compose.local.yml up --build",
     "docker:prod": "docker compose --env-file .env.prod -f docker/docker-compose.prod.yml up --build -d",
     "docker:down": "docker compose -f docker/docker-compose.local.yml -f docker/docker-compose.prod.yml down --remove-orphans",

@@ -14,6 +14,7 @@ describe('OutboxRepository', () => {
       next_retry_at: null,
       processed_at: null,
       error: null,
+      manual_retry_reason: null,
       created_at: new Date('2026-01-01T00:00:00.000Z'),
     };
     const connection = {

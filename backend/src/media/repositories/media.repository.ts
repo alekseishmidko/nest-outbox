@@ -72,6 +72,74 @@ export class MediaRepository {
   }
 
   /**
+   * Ищет уже сгенерированный avatar пользователя с тем же seed.
+   */
+  async findExistingUserAvatar(
+    userId: number,
+    seed: string,
+  ): Promise<MediaAssetRecord | null> {
+    const [rows] = await this.pool.execute<MediaAssetRow[]>(
+      `
+        SELECT
+          id,
+          owner_type,
+          owner_id,
+          type,
+          mime_type,
+          storage_type,
+          content_base64,
+          file_path,
+          metadata,
+          created_at
+        FROM media_assets
+        WHERE owner_type = 'user'
+          AND owner_id = ?
+          AND type = 'avatar'
+          AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.seed')) = ?
+        ORDER BY id DESC
+        LIMIT 1
+      `,
+      [userId, seed],
+    );
+
+    return rows[0] ? this.toRecord(rows[0]) : null;
+  }
+
+  /**
+   * Ищет уже сгенерированный QR-code карты с тем же payload.
+   */
+  async findExistingMapQr(
+    mapId: number,
+    payload: string,
+  ): Promise<MediaAssetRecord | null> {
+    const [rows] = await this.pool.execute<MediaAssetRow[]>(
+      `
+        SELECT
+          id,
+          owner_type,
+          owner_id,
+          type,
+          mime_type,
+          storage_type,
+          content_base64,
+          file_path,
+          metadata,
+          created_at
+        FROM media_assets
+        WHERE owner_type = 'map'
+          AND owner_id = ?
+          AND type = 'qr_code'
+          AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.payload')) = ?
+        ORDER BY id DESC
+        LIMIT 1
+      `,
+      [mapId, payload],
+    );
+
+    return rows[0] ? this.toRecord(rows[0]) : null;
+  }
+
+  /**
    * Сохраняет сгенерированный media asset в `media_assets`.
    *
    * На текущем этапе основной storage mode - `database`, поэтому контент

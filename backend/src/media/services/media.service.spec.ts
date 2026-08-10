@@ -31,6 +31,7 @@ describe('MediaService', () => {
         name: 'User',
         avatar_seed: 'db-seed',
       }),
+      findExistingUserAvatar: jest.fn().mockResolvedValue(null),
       createAsset: jest.fn().mockResolvedValue(asset),
     };
     const avatarGenerator = {
@@ -97,6 +98,7 @@ describe('MediaService', () => {
         longitude: '-73.96828500',
         owner_user_id: 10,
       }),
+      findExistingMapQr: jest.fn().mockResolvedValue(null),
       createAsset: jest.fn().mockResolvedValue(asset),
     };
     const qrCodeGenerator = {

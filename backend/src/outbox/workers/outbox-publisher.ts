@@ -24,6 +24,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private readonly config: OutboxPublisherConfig;
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private isShuttingDown = false;
 
   constructor(
     private readonly outboxRepository: OutboxRepository,
@@ -38,7 +39,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
    */
   onModuleInit(): void {
     this.logger.log(
-      `OutboxPublisher started: intervalMs=${this.config.pollIntervalMs}, batchSize=${this.config.batchSize}, maxAttempts=${this.config.maxAttempts}`,
+      `OutboxPublisher started: intervalMs=${this.config.pollIntervalMs}, batchSize=${this.config.batchSize}, maxAttempts=${this.config.maxAttempts}, retryBaseDelayMs=${this.config.retryBaseDelayMs}, retryMaxDelayMs=${this.config.retryMaxDelayMs}, retryJitterMs=${this.config.retryJitterMs}`,
     );
 
     this.timer = setInterval(() => {
@@ -51,17 +52,31 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   /**
    * Останавливает polling при остановке приложения.
    */
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
+    this.isShuttingDown = true;
+
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
+
+    await this.waitUntilIdle();
+    this.logger.log('OutboxPublisher stopped gracefully');
   }
 
   /**
    * Выполняет один проход обработки due-событий.
    */
   async processDueBatch(): Promise<OutboxPublishResult> {
+    if (this.isShuttingDown) {
+      this.logger.debug('OutboxPublisher tick skipped: shutting down');
+      return {
+        claimed: 0,
+        processed: 0,
+        failed: 0,
+      };
+    }
+
     if (this.isRunning) {
       this.logger.debug(
         'OutboxPublisher tick skipped: previous tick is running',
@@ -133,24 +148,28 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const attempts = event.attempts + 1;
       const message = this.toErrorMessage(error);
-      const nextRetryAt =
-        attempts >= this.config.maxAttempts
-          ? null
-          : new Date(Date.now() + this.getRetryDelayMs(attempts));
+      const shouldDeadLetter = attempts >= this.config.maxAttempts;
+      const nextRetryAt = shouldDeadLetter
+        ? null
+        : new Date(Date.now() + this.getRetryDelayMs(attempts));
 
-      await this.outboxRepository.markFailed(
-        event.id,
-        attempts,
-        message,
-        nextRetryAt,
-      );
+      if (shouldDeadLetter) {
+        await this.outboxRepository.markDeadLetter(event.id, attempts, message);
+      } else {
+        await this.outboxRepository.markFailed(
+          event.id,
+          attempts,
+          message,
+          nextRetryAt,
+        );
+      }
       this.metricsService.observeOutboxFailed(
         event.eventType,
         this.getDurationSeconds(startedAt),
       );
 
       this.logger.error(
-        `Outbox event failed: eventId=${event.id}, attempts=${attempts}, nextRetryAt=${nextRetryAt?.toISOString() ?? 'null'}, error=${message}`,
+        `Outbox event failed: eventId=${event.id}, attempts=${attempts}, status=${shouldDeadLetter ? 'dead_letter' : 'failed'}, nextRetryAt=${nextRetryAt?.toISOString() ?? 'null'}, error=${message}`,
       );
 
       return false;
@@ -158,7 +177,15 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   }
 
   private getRetryDelayMs(attempts: number): number {
-    return this.config.retryBaseDelayMs * 2 ** Math.max(attempts - 1, 0);
+    const exponentialDelay =
+      this.config.retryBaseDelayMs * 2 ** Math.max(attempts - 1, 0);
+    const cappedDelay = Math.min(exponentialDelay, this.config.retryMaxDelayMs);
+    const jitter =
+      this.config.retryJitterMs > 0
+        ? Math.floor(Math.random() * (this.config.retryJitterMs + 1))
+        : 0;
+
+    return Math.min(cappedDelay + jitter, this.config.retryMaxDelayMs);
   }
 
   private getDurationSeconds(startedAt: bigint): number {
@@ -179,5 +206,23 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     }
 
     return String(error).slice(0, 4000);
+  }
+
+  /**
+   * Ждет завершения текущего tick при graceful shutdown.
+   */
+  private async waitUntilIdle(): Promise<void> {
+    const startedAt = Date.now();
+
+    while (this.isRunning) {
+      if (Date.now() - startedAt >= this.config.shutdownTimeoutMs) {
+        this.logger.warn(
+          `OutboxPublisher shutdown timeout reached: timeoutMs=${this.config.shutdownTimeoutMs}`,
+        );
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 }

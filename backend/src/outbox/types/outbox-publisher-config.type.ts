@@ -6,4 +6,7 @@ export type OutboxPublisherConfig = {
   batchSize: number;
   maxAttempts: number;
   retryBaseDelayMs: number;
+  retryMaxDelayMs: number;
+  retryJitterMs: number;
+  shutdownTimeoutMs: number;
 };

@@ -27,7 +27,21 @@ Seed и миграции: `docs/seed.md`.
 | Поле | Тип | Назначение |
 | --- | --- | --- |
 | `version` | `VARCHAR(255)` | Имя примененной миграции |
+| `checksum` | `CHAR(64)` | SHA-256 checksum SQL-файла |
+| `execution_time_ms` | `INT UNSIGNED` | Время применения миграции в миллисекундах |
 | `applied_at` | `TIMESTAMP(3)` | Время применения |
+
+Migration runner:
+
+- берет MySQL advisory lock `nest_outbox:schema_migrations`, чтобы два процесса не применяли миграции одновременно;
+- запрещает изменение уже примененных миграций через checksum check;
+- поддерживает dry-run режим:
+
+```bash
+bun run db:migrate:dry-run
+```
+
+Dry-run показывает, какие миграции будут применены, но не выполняет SQL-файлы и не пишет строки в `schema_migrations`.
 
 ## `users`
 
@@ -143,6 +157,7 @@ Seed и миграции: `docs/seed.md`.
 | `next_retry_at` | `TIMESTAMP(3)` | Следующая попытка обработки |
 | `processed_at` | `TIMESTAMP(3)` | Время успешной обработки |
 | `error` | `TEXT` | Последняя ошибка |
+| `manual_retry_reason` | `TEXT` | Причина последнего ручного retry |
 | `created_at` | `TIMESTAMP(3)` | Дата создания события |
 
 Статусы:
@@ -151,6 +166,7 @@ Seed и миграции: `docs/seed.md`.
 - `processing`
 - `processed`
 - `failed`
+- `dead_letter`
 
 Индексы:
 
@@ -159,6 +175,28 @@ Seed и миграции: `docs/seed.md`.
 - `idx_outbox_events_status_next_retry_at`
 - `idx_outbox_events_aggregate`
 - `idx_outbox_events_created_at`
+
+## `processed_events`
+
+Idempotency ledger для обработчиков Outbox.
+
+| Поле | Тип | Назначение |
+| --- | --- | --- |
+| `id` | `BIGINT UNSIGNED` | Primary key |
+| `idempotency_key` | `VARCHAR(255)` | Уникальный ключ side effect |
+| `outbox_event_id` | `BIGINT UNSIGNED` | Ссылка на исходное событие |
+| `event_type` | `VARCHAR(128)` | Тип события |
+| `aggregate_type` | `VARCHAR(64)` | Тип агрегата |
+| `aggregate_id` | `BIGINT UNSIGNED` | ID агрегата |
+| `status` | `ENUM` | `processing` или `processed` |
+| `processed_at` | `TIMESTAMP(3)` | Время успешной обработки |
+| `created_at` | `TIMESTAMP(3)` | Дата reservation |
+
+Индексы:
+
+- `uq_processed_events_idempotency_key`: запрещает повторный side effect.
+- `idx_processed_events_event`: поиск по типу события и агрегату.
+- `idx_processed_events_outbox_event_id`: связь с outbox event.
 
 ## Почему `media_assets` без foreign key
 

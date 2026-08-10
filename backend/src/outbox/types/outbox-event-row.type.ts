@@ -15,5 +15,6 @@ export type OutboxEventRow = RowDataPacket & {
   next_retry_at: Date | null;
   processed_at: Date | null;
   error: string | null;
+  manual_retry_reason: string | null;
   created_at: Date;
 };

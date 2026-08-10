@@ -36,6 +36,18 @@ export class MediaService {
     }
 
     const seed = dto.seed ?? user.avatar_seed;
+    const existingAsset = await this.mediaRepository.findExistingUserAvatar(
+      userId,
+      seed,
+    );
+
+    if (existingAsset) {
+      return {
+        asset: existingAsset,
+        dataUrl: this.toDataUrl(existingAsset),
+      };
+    }
+
     const svg = this.avatarGenerator.generateSvg(seed);
     const content = Buffer.from(svg, 'utf8');
     const storage = await this.mediaStorageService.save({
@@ -91,6 +103,18 @@ export class MediaService {
         latitude: map.latitude,
         longitude: map.longitude,
       });
+    const existingAsset = await this.mediaRepository.findExistingMapQr(
+      mapId,
+      payload,
+    );
+
+    if (existingAsset) {
+      return {
+        asset: existingAsset,
+        dataUrl: this.toDataUrl(existingAsset),
+      };
+    }
+
     const dataUrl = await this.qrCodeGenerator.generateDataUrl(payload);
     const content = Buffer.from(this.extractBase64(dataUrl), 'base64');
     const storage = await this.mediaStorageService.save({

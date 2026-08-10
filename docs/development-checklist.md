@@ -451,16 +451,16 @@
   - [x] Изучить порядок колонок в composite indexes.
   - [x] Добавить пример плохого индекса и объяснить, почему он не используется.
 
-- [ ] Усилить надежность Outbox.
-  - Добавить idempotency key для обработчиков.
-  - Добавить таблицу `processed_events`.
-  - Защититься от повторной генерации media.
-  - Добавить manual retry endpoint с причиной.
-  - Добавить dead-letter статус.
-  - Описать max attempts policy.
-  - Настроить backoff strategy.
-  - Реализовать graceful shutdown worker'а.
-  - Проверить несколько backend-инстансов в Docker Compose.
+- [x] Усилить надежность Outbox.
+  - [x] Добавить idempotency key для обработчиков.
+  - [x] Добавить таблицу `processed_events`.
+  - [x] Защититься от повторной генерации media.
+  - [x] Добавить manual retry endpoint с причиной.
+  - [x] Добавить dead-letter статус.
+  - [x] Описать max attempts policy.
+  - [x] Настроить backoff strategy.
+  - [x] Реализовать graceful shutdown worker'а.
+  - [x] Проверить несколько backend-инстансов в Docker Compose.
 
 - [x] Добавить Idempotency API.
   - [x] Поддержать header `Idempotency-Key` для `POST /orders`.
@@ -485,21 +485,21 @@
   - Добавить MinIO в Docker Compose.
   - Не раскрывать детали storage в HTTP/controller слое.
 
-- [ ] Добавить CI.
-  - GitHub Actions или локальный `ci` script.
-  - `bun run format:check`.
-  - `bun run lint:check`.
-  - `bun run build`.
-  - `bun run test`.
-  - Отдельный job для integration/e2e с MySQL service.
+- [x] Добавить CI.
+  - [x] GitHub Actions или локальный `ci` script.
+  - [x] `bun run format:check`.
+  - [x] `bun run lint:check`.
+  - [x] `bun run build`.
+  - [x] `bun run test`.
+  - [x] Отдельный job для integration/e2e с MySQL service.
 
-- [ ] Улучшить migration runner.
-  - Добавить checksum миграций.
-  - Запретить изменение уже примененной миграции.
-  - Добавить `checksum` в `schema_migrations`.
-  - Добавить `execution_time_ms` в `schema_migrations`.
-  - Добавить advisory lock на время миграций.
-  - Добавить dry-run режим.
+- [x] Улучшить migration runner.
+  - [x] Добавить checksum миграций.
+  - [x] Запретить изменение уже примененной миграции.
+  - [x] Добавить `checksum` в `schema_migrations`.
+  - [x] Добавить `execution_time_ms` в `schema_migrations`.
+  - [x] Добавить advisory lock на время миграций.
+  - [x] Добавить dry-run режим.
 
 - [ ] Углубить observability.
   - Прокидывать request id в SQL logs.

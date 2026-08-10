@@ -10,6 +10,19 @@ Docker Compose поднимает локальное окружение разр
 bun run docker:local
 ```
 
+## Несколько backend-инстансов
+
+Для проверки Outbox под несколькими инстансами есть compose profile `multi-backend`.
+
+```bash
+docker compose --env-file .env.local \
+  -f docker/docker-compose.local.yml \
+  --profile multi-backend \
+  up --build
+```
+
+В этом режиме дополнительно запускается `backend-worker` без публикации HTTP-порта. Оба backend-инстанса читают одну таблицу `outbox_events`, а `FOR UPDATE SKIP LOCKED` и `processed_events.idempotency_key` защищают от двойной обработки.
+
 Сервисы:
 
 - Backend: `http://localhost:3000`

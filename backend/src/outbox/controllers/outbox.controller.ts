@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ListOutboxEventsQueryDto } from '../dto/list-outbox-events-query.dto';
+import { RetryOutboxEventDto } from '../dto/retry-outbox-event.dto';
 import { OutboxService } from '../services/outbox.service';
 
 @ApiTags('outbox')
@@ -31,7 +33,10 @@ export class OutboxController {
   @Post(':id/retry')
   @HttpCode(200)
   @ApiOperation({ summary: 'Повторно поставить Outbox-событие в обработку' })
-  retry(@Param('id', ParseIntPipe) id: number) {
-    return this.outboxService.retry(id);
+  retry(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RetryOutboxEventDto,
+  ) {
+    return this.outboxService.retry(id, dto);
   }
 }

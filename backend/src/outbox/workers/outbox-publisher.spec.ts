@@ -35,6 +35,7 @@ function createEvent(
     nextRetryAt: null,
     processedAt: null,
     error: null,
+    manualRetryReason: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
   };
@@ -44,7 +45,11 @@ describe('OutboxPublisher', () => {
   let repository: jest.Mocked<
     Pick<
       OutboxRepository,
-      'claimDueEvents' | 'markProcessed' | 'markFailed' | 'countByStatus'
+      | 'claimDueEvents'
+      | 'markProcessed'
+      | 'markFailed'
+      | 'markDeadLetter'
+      | 'countByStatus'
     >
   >;
   let service: OutboxServiceMock;
@@ -55,11 +60,15 @@ describe('OutboxPublisher', () => {
     process.env.OUTBOX_BATCH_SIZE = '10';
     process.env.OUTBOX_MAX_ATTEMPTS = '3';
     process.env.OUTBOX_RETRY_BASE_DELAY_MS = '1000';
+    process.env.OUTBOX_RETRY_MAX_DELAY_MS = '60000';
+    process.env.OUTBOX_RETRY_JITTER_MS = '0';
+    process.env.OUTBOX_SHUTDOWN_TIMEOUT_MS = '1000';
 
     repository = {
       claimDueEvents: jest.fn(),
       markProcessed: jest.fn(),
       markFailed: jest.fn(),
+      markDeadLetter: jest.fn(),
       countByStatus: jest.fn().mockResolvedValue([]),
     };
     service = {
@@ -78,6 +87,9 @@ describe('OutboxPublisher', () => {
     delete process.env.OUTBOX_BATCH_SIZE;
     delete process.env.OUTBOX_MAX_ATTEMPTS;
     delete process.env.OUTBOX_RETRY_BASE_DELAY_MS;
+    delete process.env.OUTBOX_RETRY_MAX_DELAY_MS;
+    delete process.env.OUTBOX_RETRY_JITTER_MS;
+    delete process.env.OUTBOX_SHUTDOWN_TIMEOUT_MS;
   });
 
   function createPublisher(): OutboxPublisher {
@@ -143,22 +155,22 @@ describe('OutboxPublisher', () => {
     });
   });
 
-  it('не планирует next_retry_at после исчерпания attempts', async () => {
+  it('переводит событие в dead_letter после исчерпания attempts', async () => {
     const event = createEvent({ attempts: 2 });
     const publisher = createPublisher();
 
     repository.claimDueEvents.mockResolvedValue([event]);
     service.handleEvent.mockRejectedValue(new Error('final failure'));
-    repository.markFailed.mockResolvedValue();
+    repository.markDeadLetter.mockResolvedValue();
 
     await publisher.processDueBatch();
 
-    expect(repository.markFailed).toHaveBeenCalledWith(
+    expect(repository.markDeadLetter).toHaveBeenCalledWith(
       event.id,
       3,
       'final failure',
-      null,
     );
+    expect(repository.markFailed).not.toHaveBeenCalled();
   });
 
   it('обрабатывает повторную попытку события из failed-статуса', async () => {
@@ -223,5 +235,27 @@ describe('OutboxPublisher', () => {
     expect(service.handleEvent).not.toHaveBeenCalled();
     expect(repository.markProcessed).not.toHaveBeenCalled();
     expect(repository.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('ждет завершения текущего tick при graceful shutdown', async () => {
+    let resolveClaim: (events: OutboxEventRecord[]) => void;
+    const event = createEvent();
+    const publisher = createPublisher();
+    const claimPromise = new Promise<OutboxEventRecord[]>((resolve) => {
+      resolveClaim = resolve;
+    });
+
+    repository.claimDueEvents.mockReturnValue(claimPromise);
+    service.handleEvent.mockResolvedValue();
+    repository.markProcessed.mockResolvedValue();
+
+    const tickPromise = publisher.processDueBatch();
+    const destroyPromise = publisher.onModuleDestroy();
+
+    resolveClaim!([event]);
+    await tickPromise;
+    await destroyPromise;
+
+    expect(repository.markProcessed).toHaveBeenCalledWith(event.id);
   });
 });
