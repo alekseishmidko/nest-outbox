@@ -12,6 +12,7 @@ import { OrdersModule } from './orders/orders.module';
 import { OutboxModule } from './outbox/outbox.module';
 import { ReportsModule } from './reports/reports.module';
 import { SeedModule } from './seed/seed.module';
+import { TransactionsLabModule } from './transactions-lab/transactions-lab.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     OutboxModule,
     ReportsModule,
     SeedModule,
+    TransactionsLabModule,
     UsersModule,
   ],
   controllers: [AppController],

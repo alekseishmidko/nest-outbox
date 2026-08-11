@@ -399,6 +399,12 @@
   - Prometheus.
   - Grafana.
 
+- [x] Создать `docs/transactions.md`.
+  - `READ COMMITTED` vs `REPEATABLE READ`.
+  - Dirty reads.
+  - Non-repeatable reads.
+  - Результаты проверки на MySQL/InnoDB.
+
 - [ ] Добавлять JSDoc на русском языке к публичным классам и методам.
   - Цель.
   - Входные параметры.
@@ -433,12 +439,39 @@
 ## 15. Следующие backend-навыки
 
 - [ ] Углубить работу с транзакциями.
-  - `READ COMMITTED` vs `REPEATABLE READ`.
-  - Dirty reads, non-repeatable reads, phantom reads.
-  - Deadlock simulation.
-  - Retry при deadlock.
-  - Optimistic locking через поле `version`.
-  - Pessimistic locking через `SELECT ... FOR UPDATE`.
+  - Цель: научиться управлять конкурентным доступом к данным, понимать аномалии чтения и проектировать надежные retry/locking сценарии.
+  - [x] Описать разницу `READ COMMITTED` vs `REPEATABLE READ`.
+  - [x] Проверить поведение MySQL/InnoDB на `READ COMMITTED`.
+  - [x] Проверить поведение MySQL/InnoDB на `REPEATABLE READ`.
+  - [x] Подготовить SQL-сценарий для dirty reads.
+  - [x] Зафиксировать вывод: dirty reads в InnoDB не допускаются на стандартных уровнях изоляции, но важно понимать саму аномалию.
+  - [x] Подготовить SQL-сценарий для non-repeatable reads.
+  - [x] Подготовить SQL-сценарий для phantom reads.
+  - [x] Сравнить результаты одних и тех же сценариев на разных isolation levels.
+  - [x] Создать `docs/transactions.md`.
+  - [x] Добавить примеры ручного запуска двух параллельных транзакций через Adminer/mysql client.
+  - [x] Создать учебный модуль `transactions-lab` или `concurrency-lab`.
+  - [x] Добавить endpoint для демонстрации non-repeatable read.
+  - [x] Добавить endpoint для демонстрации phantom read.
+  - [x] Добавить endpoint для deadlock simulation.
+  - [x] Реализовать deadlock simulation на двух транзакциях, которые обновляют строки в разном порядке.
+  - Добавить retry при deadlock.
+  - Обрабатывать MySQL error code `ER_LOCK_DEADLOCK`.
+  - Ограничить retry count и добавить backoff между попытками.
+  - Логировать номер попытки, код ошибки, transaction id/request id и итог операции.
+  - Добавить optimistic locking через поле `version`.
+  - Добавить `version` в таблицу, где удобно тренировать конкурентные обновления, например `orders`.
+  - Обновлять запись через условие `WHERE id = ? AND version = ?`.
+  - При конфликте версии возвращать понятную API-ошибку `409 Conflict`.
+  - Добавить pessimistic locking через `SELECT ... FOR UPDATE`.
+  - Реализовать пример безопасного изменения заказа внутри транзакции с блокировкой строки.
+  - Сравнить optimistic и pessimistic locking по UX, latency и риску конфликтов.
+  - Добавить integration-тесты на deadlock retry.
+  - Добавить integration-тесты на optimistic locking conflict.
+  - Добавить integration-тесты на `SELECT ... FOR UPDATE`.
+  - Добавить e2e-тесты API для конфликтов конкурентного обновления.
+  - Добавить метрики: deadlock count, transaction retry count, lock wait duration.
+  - Зафиксировать выводы: когда выбирать optimistic locking, когда pessimistic locking, где retry безопасен, а где может создать дубли.
 
 - [x] Углубить SQL-оптимизацию.
   - [x] Создать модуль `reports`.
@@ -468,6 +501,27 @@
   - [x] Повторный запрос с тем же ключом должен возвращать прежний результат.
   - [x] Повторный запрос не должен создавать второй заказ.
   - [x] Добавить тесты на timeout/retry сценарий клиента.
+
+- [ ] Добавить бизнес-модуль `routes` для расстояний и подбора маршрута.
+  - Оценка требования: хорошее расширение проекта, потому что связывает доменную логику с SQL, индексами, DTO, тестами и метриками.
+  - Ограничение: точный дорожный маршрут без внешнего routing provider или собственной графовой модели дорог невозможен; MVP должен считать геодезическое расстояние и подбирать подходящие точки/карты по заданным критериям.
+  - MVP: расчет расстояния между двумя координатами через Haversine или `ST_Distance_Sphere`.
+  - MVP: поиск ближайших `maps` от заданной точки с фильтрацией по радиусу.
+  - MVP: подбор подходящего маршрута между двумя `maps` как direct route с расчетом расстояния и подбором промежуточных точек-кандидатов.
+  - Расширение: добавить таблицу `route_edges` для графа переходов между картами/локациями.
+  - Расширение: реализовать алгоритм Dijkstra или A* поверх `route_edges`.
+  - Расширение: добавить критерии маршрута: минимальная дистанция, наличие media, активность заказов, владелец карты, статус заказов.
+  - SQL-фокус: bounding box перед точным расчетом расстояния, composite indexes по `latitude`/`longitude`, `EXPLAIN ANALYZE` до и после индексов.
+  - API:
+    - `POST /routes/distance`
+    - `GET /routes/nearby`
+    - `POST /routes/search`
+  - DTO: координаты origin/destination, `mapId`, радиус поиска, limit, критерии сортировки.
+  - Repository: весь SQL поиска расстояний и ближайших точек держать в `routes/repositories`.
+  - Service: расчет расстояния и выбор маршрута держать в `routes/services`, без HTTP-деталей.
+  - Tests: unit-тесты формулы расстояния, integration-тесты SQL-поиска ближайших карт, e2e-тесты API.
+  - Observability: метрики latency поиска маршрута, количество route search запросов, логирование выбранной стратегии.
+  - Документация: создать `docs/routes.md` с формулами, SQL-примерами, индексами, ограничениями MVP и планом перехода к графовой модели.
 
 - [ ] Добавить auth и безопасность.
   - JWT auth.
@@ -531,6 +585,8 @@
 - [x] Этап 18: Reports module с window functions.
 - [ ] Этап 19: MinIO storage для media.
 - [ ] Этап 20: CI pipeline.
+- [ ] Этап 21: бизнес-модуль `routes`, расчет расстояний и подбор маршрута.
+- [ ] Этап 22: transaction lab, isolation levels, deadlocks и locking strategies.
 
 ## 17. Definition of Done
 
@@ -556,5 +612,7 @@
 - [ ] Есть unit, integration и e2e тесты.
 - [x] Есть CI для format, lint, build и test.
 - [x] Есть отдельный CI job для integration/e2e с MySQL service.
+- [ ] Есть бизнес-модуль `routes` для расчета расстояний и подбора маршрута.
+- [ ] Есть transaction lab с примерами isolation levels, deadlock retry, optimistic locking и pessimistic locking.
 - [ ] Есть документация по каждому модулю.
 - [ ] Ключевые публичные классы и методы имеют JSDoc на русском языке.
