@@ -23,6 +23,7 @@ services:
       OUTBOX_RETRY_MAX_DELAY_MS: ${OUTBOX_RETRY_MAX_DELAY_MS:-60000}
       OUTBOX_RETRY_JITTER_MS: ${OUTBOX_RETRY_JITTER_MS:-250}
       OUTBOX_SHUTDOWN_TIMEOUT_MS: ${OUTBOX_SHUTDOWN_TIMEOUT_MS:-10000}
+      SQL_SLOW_QUERY_THRESHOLD_MS: ${SQL_SLOW_QUERY_THRESHOLD_MS:-100}
       MEDIA_STORAGE_MODE: ${MEDIA_STORAGE_MODE:-database}
       MEDIA_LOCAL_STORAGE_DIR: ${MEDIA_LOCAL_STORAGE_DIR:-/app/storage/media}
       MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
@@ -106,6 +107,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data_prod:/prometheus
     depends_on:
       backend:

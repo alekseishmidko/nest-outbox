@@ -46,7 +46,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `Unhandled API error: method=${request.method}, path=${request.originalUrl}, requestId=${requestId ?? 'n/a'}, error=${normalized.message}`,
+        JSON.stringify({
+          event: 'api.error',
+          method: request.method,
+          path: request.originalUrl,
+          statusCode,
+          requestId: requestId ?? null,
+          errorCode: normalized.errorCode,
+          message: normalized.message,
+        }),
         exception instanceof Error ? exception.stack : undefined,
       );
     }

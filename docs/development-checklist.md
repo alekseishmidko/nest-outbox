@@ -556,12 +556,12 @@
   - [x] Добавить dry-run режим.
 
 - [ ] Углубить observability.
-  - Прокидывать request id в SQL logs.
-  - Добавить slow query logging на уровне приложения.
-  - Добавить dashboard по DB query duration per operation.
-  - Добавить Prometheus alerting rules.
-  - Стандартизировать structured error logs.
-  - Добавить correlation id для Outbox events.
+  - [x] Прокидывать request id в SQL logs.
+  - [x] Добавить slow query logging на уровне приложения.
+  - [x] Добавить dashboard по DB query duration per operation.
+  - [x] Добавить Prometheus alerting rules.
+  - [x] Стандартизировать structured error logs.
+  - [x] Добавить correlation id для Outbox events.
 
 ## 16. Рекомендуемый порядок разработки
 

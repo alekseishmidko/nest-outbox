@@ -1,0 +1,59 @@
+groups:
+  - name: nest-outbox-observability
+    rules:
+      - alert: HighHttpErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая доля 5xx HTTP-ошибок"
+          description: "Доля 5xx ответов backend выше 5% в течение 5 минут."
+
+      - alert: HighHttpP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая HTTP p95 latency"
+          description: "p95 latency HTTP-запросов выше 1 секунды в течение 5 минут."
+
+      - alert: HighDbP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation)
+          ) > 0.25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая DB p95 latency"
+          description: "p95 latency SQL operation {{ $labels.operation }} выше 250ms."
+
+      - alert: OutboxFailedEvents
+        expr: sum(rate(outbox_failed_total[5m])) by (event_type) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ошибки обработки Outbox"
+          description: "Outbox event type {{ $labels.event_type }} имеет ошибки обработки."
+
+      - alert: OutboxDeadLetterEvents
+        expr: outbox_events_by_status{status="dead_letter"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Есть dead-letter Outbox-события"
+          description: "В Outbox есть события в статусе dead_letter."

@@ -21,7 +21,13 @@ export class OrderCreatedOutboxHandler {
     const payload = this.parsePayload(event.payload);
 
     this.logger.log(
-      `Handle order.created: eventId=${event.id}, orderId=${payload.orderId}, userId=${payload.userId}, mapId=${payload.mapId}`,
+      JSON.stringify({
+        event: 'outbox.order_created.handle',
+        outboxEventId: event.id,
+        orderId: payload.orderId,
+        userId: payload.userId,
+        mapId: payload.mapId,
+      }),
     );
 
     await this.mediaService.generateUserAvatar(payload.userId);
