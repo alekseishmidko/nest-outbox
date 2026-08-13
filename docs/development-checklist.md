@@ -455,14 +455,14 @@
   - [x] Добавить endpoint для демонстрации phantom read.
   - [x] Добавить endpoint для deadlock simulation.
   - [x] Реализовать deadlock simulation на двух транзакциях, которые обновляют строки в разном порядке.
-  - Добавить retry при deadlock.
-  - Обрабатывать MySQL error code `ER_LOCK_DEADLOCK`.
-  - Ограничить retry count и добавить backoff между попытками.
-  - Логировать номер попытки, код ошибки, transaction id/request id и итог операции.
-  - Добавить optimistic locking через поле `version`.
-  - Добавить `version` в таблицу, где удобно тренировать конкурентные обновления, например `orders`.
-  - Обновлять запись через условие `WHERE id = ? AND version = ?`.
-  - При конфликте версии возвращать понятную API-ошибку `409 Conflict`.
+  - [x] Добавить retry при deadlock.
+  - [x] Обрабатывать MySQL error code `ER_LOCK_DEADLOCK`.
+  - [x] Ограничить retry count и добавить backoff между попытками.
+  - [x] Логировать номер попытки, код ошибки, transaction id/request id и итог операции.
+  - [x] Добавить optimistic locking через поле `version`.
+  - [x] Добавить `version` в таблицу, где удобно тренировать конкурентные обновления, например `orders`.
+  - [x] Обновлять запись через условие `WHERE id = ? AND version = ?`.
+  - [x] При конфликте версии возвращать понятную API-ошибку `409 Conflict`.
   - Добавить pessimistic locking через `SELECT ... FOR UPDATE`.
   - Реализовать пример безопасного изменения заказа внутри транзакции с блокировкой строки.
   - Сравнить optimistic и pessimistic locking по UX, latency и риску конфликтов.

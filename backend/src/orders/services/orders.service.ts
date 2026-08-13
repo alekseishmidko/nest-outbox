@@ -16,6 +16,7 @@ import {
 } from '../types/idempotency-error.type';
 import { OrderOverviewRecord } from '../types/order-overview-record.type';
 import { OrderRecord } from '../types/order-record.type';
+import { OptimisticLockConflictError } from '../types/optimistic-lock-conflict.error';
 
 /**
  * Сервис заказов.
@@ -101,7 +102,19 @@ export class OrdersService {
     id: number,
     dto: UpdateOrderStatusDto,
   ): Promise<OrderRecord> {
-    const order = await this.ordersRepository.updateStatus(id, dto.status);
+    let order: OrderRecord | null;
+    try {
+      order = await this.ordersRepository.updateStatus(
+        id,
+        dto.status,
+        dto.version,
+      );
+    } catch (error) {
+      if (error instanceof OptimisticLockConflictError) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
 
     if (!order) {
       throw new NotFoundException(`Заказ ${id} не найден`);

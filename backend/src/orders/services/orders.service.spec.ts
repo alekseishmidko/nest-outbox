@@ -186,7 +186,26 @@ describe('OrdersService', () => {
     );
 
     await expect(
-      service.updateStatus(999, { status: OrderStatus.Completed }),
+      service.updateStatus(999, { status: OrderStatus.Completed, version: 0 }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('возвращает 409 при конфликте optimistic lock', async () => {
+    const { OptimisticLockConflictError } =
+      await import('../types/optimistic-lock-conflict.error');
+    const repository = {
+      updateStatus: jest
+        .fn()
+        .mockRejectedValue(new OptimisticLockConflictError(1, 2)),
+    };
+    const service = new OrdersService(
+      repository as unknown as OrdersRepository,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.updateStatus(1, { status: OrderStatus.Completed, version: 2 }),
+    ).rejects.toThrow(ConflictException);
   });
 });

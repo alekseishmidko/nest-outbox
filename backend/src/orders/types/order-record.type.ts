@@ -9,6 +9,7 @@ export type OrderRecord = {
   mapId: number;
   status: OrderStatus;
   totalAmount: string;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 };
