@@ -1,8 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 import { ResultSetHeader } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
+import { getObservabilityContext } from '../../common/observability/observability-context';
+import { isMysqlDeadlockError } from '../../common/utils/mysql-error.util';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { OrderStatus } from '../dto/order-status.dto';
@@ -16,6 +18,7 @@ import { OrderOverviewRecord } from '../types/order-overview-record.type';
 import { OrderOverviewRow } from '../types/order-overview-row.type';
 import { OrderRecord } from '../types/order-record.type';
 import { OrderRow } from '../types/order-row.type';
+import { OptimisticLockConflictError } from '../types/optimistic-lock-conflict.error';
 import { SqlValue } from '../types/sql-value.type';
 
 /**
@@ -25,6 +28,10 @@ import { SqlValue } from '../types/sql-value.type';
  */
 @Injectable()
 export class OrdersRepository {
+  private readonly logger = new Logger(OrdersRepository.name);
+  private readonly transactionMaxAttempts = 3;
+  private readonly transactionRetryBaseDelayMs = 50;
+
   constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
 
   /**
@@ -33,6 +40,40 @@ export class OrdersRepository {
    * Если вставка события падает, транзакция откатывается и заказ не сохраняется.
    */
   async createWithOutbox(
+    dto: CreateOrderDto,
+    idempotencyKey?: string,
+  ): Promise<OrderRecord> {
+    const transactionId = randomUUID();
+
+    for (let attempt = 1; attempt <= this.transactionMaxAttempts; attempt++) {
+      try {
+        const result = await this.createWithOutboxAttempt(dto, idempotencyKey);
+        this.logTransaction('success', transactionId, attempt);
+        return result;
+      } catch (error) {
+        const retryable = isMysqlDeadlockError(error);
+        const finalAttempt = attempt === this.transactionMaxAttempts;
+
+        this.logTransaction(
+          retryable && !finalAttempt ? 'retrying' : 'failed',
+          transactionId,
+          attempt,
+          error,
+        );
+
+        if (!retryable || finalAttempt) {
+          throw error;
+        }
+
+        await this.delay(this.transactionRetryBaseDelayMs * 2 ** (attempt - 1));
+      }
+    }
+
+    throw new Error('Transaction retry loop finished unexpectedly');
+  }
+
+  /** Выполняет одну попытку транзакции создания заказа. */
+  private async createWithOutboxAttempt(
     dto: CreateOrderDto,
     idempotencyKey?: string,
   ): Promise<OrderRecord> {
@@ -69,6 +110,34 @@ export class OrdersRepository {
     } finally {
       connection.release();
     }
+  }
+
+  private logTransaction(
+    outcome: 'success' | 'retrying' | 'failed',
+    transactionId: string,
+    attempt: number,
+    error?: unknown,
+  ): void {
+    const mysqlError = error as { code?: string } | undefined;
+    const details = {
+      transactionId,
+      requestId: getObservabilityContext().requestId ?? null,
+      attempt,
+      errorCode: mysqlError?.code ?? null,
+      outcome,
+    };
+
+    if (outcome === 'success') {
+      this.logger.log(details, 'Order transaction completed');
+    } else if (outcome === 'retrying') {
+      this.logger.warn(details, 'Order transaction deadlock; retry scheduled');
+    } else {
+      this.logger.error(details, 'Order transaction failed');
+    }
+  }
+
+  private delay(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 
   /**
@@ -276,6 +345,7 @@ export class OrdersRepository {
             map_id,
             status,
             total_amount,
+            version,
             created_at,
             updated_at
           FROM orders
@@ -297,6 +367,7 @@ export class OrdersRepository {
           map_id,
           status,
           total_amount,
+          version,
           created_at,
           updated_at
         FROM orders
@@ -369,6 +440,7 @@ export class OrdersRepository {
           map_id,
           status,
           total_amount,
+          version,
           created_at,
           updated_at
         FROM orders
@@ -407,11 +479,24 @@ export class OrdersRepository {
   async updateStatus(
     id: number,
     status: OrderStatus,
+    expectedVersion: number,
   ): Promise<OrderRecord | null> {
-    await this.pool.execute('UPDATE orders SET status = ? WHERE id = ?', [
-      status,
-      id,
-    ]);
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      `
+        UPDATE orders
+        SET status = ?, version = version + 1
+        WHERE id = ? AND version = ?
+      `,
+      [status, id, expectedVersion],
+    );
+
+    if (result.affectedRows === 0) {
+      const existing = await this.findById(id);
+      if (existing) {
+        throw new OptimisticLockConflictError(id, expectedVersion);
+      }
+      return null;
+    }
 
     return this.findById(id);
   }
@@ -447,6 +532,7 @@ export class OrdersRepository {
           map_id,
           status,
           total_amount,
+          version,
           created_at,
           updated_at
         FROM orders
@@ -475,6 +561,7 @@ export class OrdersRepository {
           map_id,
           status,
           total_amount,
+          version,
           created_at,
           updated_at
         FROM orders
@@ -502,6 +589,7 @@ export class OrdersRepository {
       mapId: row.map_id,
       status: row.status,
       totalAmount: row.total_amount,
+      version: row.version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

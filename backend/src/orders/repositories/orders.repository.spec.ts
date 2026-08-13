@@ -247,6 +247,87 @@ describe('OrdersRepository', () => {
     expect(connection.rollback).toHaveBeenCalled();
     expect(connection.commit).not.toHaveBeenCalled();
   });
+
+  it('повторяет всю транзакцию после ER_LOCK_DEADLOCK', async () => {
+    const deadlockedConnection = {
+      beginTransaction: jest.fn().mockResolvedValue(undefined),
+      execute: jest
+        .fn()
+        .mockRejectedValue({ code: 'ER_LOCK_DEADLOCK', errno: 1213 }),
+      rollback: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn(),
+    };
+    const createdAt = new Date();
+    const successfulConnection = {
+      beginTransaction: jest.fn().mockResolvedValue(undefined),
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([{ insertId: 7 }])
+        .mockResolvedValueOnce([{}]),
+      query: jest.fn().mockResolvedValueOnce([
+        [
+          {
+            id: 7,
+            user_id: 1,
+            map_id: 2,
+            status: OrderStatus.Pending,
+            total_amount: '10.00',
+            version: 0,
+            created_at: createdAt,
+            updated_at: createdAt,
+          },
+        ],
+      ]),
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn(),
+    };
+    const pool = {
+      getConnection: jest
+        .fn()
+        .mockResolvedValueOnce(deadlockedConnection)
+        .mockResolvedValueOnce(successfulConnection),
+    };
+    const repository = new OrdersRepository(pool as never);
+
+    await expect(
+      repository.createWithOutbox({ userId: 1, mapId: 2, totalAmount: 10 }),
+    ).resolves.toMatchObject({ id: 7, version: 0 });
+
+    expect(pool.getConnection).toHaveBeenCalledTimes(2);
+    expect(deadlockedConnection.rollback).toHaveBeenCalled();
+    expect(deadlockedConnection.release).toHaveBeenCalled();
+    expect(successfulConnection.commit).toHaveBeenCalled();
+  });
+
+  it('обновляет заказ только при совпадении version', async () => {
+    const pool = {
+      execute: jest.fn().mockResolvedValue([{ affectedRows: 0 }]),
+      query: jest.fn().mockResolvedValue([
+        [
+          {
+            id: 5,
+            user_id: 1,
+            map_id: 2,
+            status: OrderStatus.Paid,
+            total_amount: '10.00',
+            version: 3,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        ],
+      ]),
+    };
+    const repository = new OrdersRepository(pool as never);
+
+    await expect(
+      repository.updateStatus(5, OrderStatus.Completed, 2),
+    ).rejects.toMatchObject({ name: 'OptimisticLockConflictError' });
+    expect(pool.execute).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE id = ? AND version = ?'),
+      [OrderStatus.Completed, 5, 2],
+    );
+  });
 });
 
 function createRequestHash(dto: {

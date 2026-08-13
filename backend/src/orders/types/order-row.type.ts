@@ -10,6 +10,7 @@ export type OrderRow = RowDataPacket & {
   map_id: number;
   status: OrderStatus;
   total_amount: string;
+  version: number;
   created_at: Date;
   updated_at: Date;
 };

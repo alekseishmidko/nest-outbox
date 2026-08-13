@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsInt, Min } from 'class-validator';
 import { OrderStatus } from './order-status.dto';
 
 /**
@@ -13,4 +13,13 @@ export class UpdateOrderStatusDto {
   })
   @IsEnum(OrderStatus)
   status!: OrderStatus;
+
+  @ApiProperty({
+    description: 'Текущая версия заказа для optimistic locking.',
+    example: 0,
+    minimum: 0,
+  })
+  @IsInt()
+  @Min(0)
+  version!: number;
 }

@@ -76,7 +76,7 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Изменить статус заказа' })
+  @ApiOperation({ summary: 'Изменить статус заказа с optimistic locking' })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,

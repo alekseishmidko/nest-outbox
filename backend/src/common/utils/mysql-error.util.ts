@@ -26,3 +26,13 @@ export function isMysqlDuplicateEntryError(error: unknown): boolean {
     (error.code === 'ER_DUP_ENTRY' || error.errno === 1062)
   );
 }
+
+/**
+ * Проверяет deadlock, при котором InnoDB откатывает одну из транзакций.
+ */
+export function isMysqlDeadlockError(error: unknown): boolean {
+  return (
+    isMysqlError(error) &&
+    (error.code === 'ER_LOCK_DEADLOCK' || error.errno === 1213)
+  );
+}
