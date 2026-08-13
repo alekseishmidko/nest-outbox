@@ -84,7 +84,7 @@ export const outboxEventsByStatus = new Gauge({
 export const dbQueryDurationSeconds = new Histogram({
   name: 'db_query_duration_seconds',
   help: 'Длительность SQL-запросов к MySQL в секундах.',
-  labelNames: ['operation'] as const,
+  labelNames: ['operation', 'command'] as const,
   buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
   registers: [metricsRegistry],
 });

@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { runWithObservabilityContext } from '../../common/observability/observability-context';
 import { MetricsService } from '../../metrics/services/metrics.service';
 import { OutboxRepository } from '../repositories/outbox.repository';
 import { OutboxService } from '../services/outbox.service';
@@ -135,14 +136,48 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processEvent(event: OutboxEventRecord): Promise<boolean> {
+    return runWithObservabilityContext(
+      {
+        correlationId: this.createOutboxCorrelationId(event),
+      },
+      () => this.processEventWithContext(event),
+    );
+  }
+
+  private async processEventWithContext(
+    event: OutboxEventRecord,
+  ): Promise<boolean> {
     const startedAt = process.hrtime.bigint();
+    const correlationId = this.createOutboxCorrelationId(event);
 
     try {
+      this.logger.log(
+        JSON.stringify({
+          event: 'outbox.event_processing_started',
+          correlationId,
+          outboxEventId: event.id,
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          attempts: event.attempts,
+        }),
+      );
       await this.outboxService.handleEvent(event);
       await this.outboxRepository.markProcessed(event.id);
       this.metricsService.observeOutboxProcessed(
         event.eventType,
         this.getDurationSeconds(startedAt),
+      );
+      this.logger.log(
+        JSON.stringify({
+          event: 'outbox.event_processed',
+          correlationId,
+          outboxEventId: event.id,
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          durationSeconds: this.getDurationSeconds(startedAt),
+        }),
       );
       return true;
     } catch (error) {
@@ -169,7 +204,19 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
       );
 
       this.logger.error(
-        `Outbox event failed: eventId=${event.id}, attempts=${attempts}, status=${shouldDeadLetter ? 'dead_letter' : 'failed'}, nextRetryAt=${nextRetryAt?.toISOString() ?? 'null'}, error=${message}`,
+        JSON.stringify({
+          event: 'outbox.event_failed',
+          correlationId,
+          outboxEventId: event.id,
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          attempts,
+          status: shouldDeadLetter ? 'dead_letter' : 'failed',
+          nextRetryAt: nextRetryAt?.toISOString() ?? null,
+          error: message,
+          durationSeconds: this.getDurationSeconds(startedAt),
+        }),
       );
 
       return false;
@@ -206,6 +253,10 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     }
 
     return String(error).slice(0, 4000);
+  }
+
+  private createOutboxCorrelationId(event: OutboxEventRecord): string {
+    return `outbox:${event.eventType}:${event.aggregateType}:${event.aggregateId}:event:${event.id}`;
   }
 
   /**

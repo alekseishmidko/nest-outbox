@@ -227,11 +227,38 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation))",
-          "legendFormat": "{{operation}} p95"
+          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation, command))",
+          "legendFormat": "{{operation}} {{command}} p95"
         }
       ],
-      "title": "DB Query Duration",
+      "title": "DB Query Duration p95 By Operation",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "sum(rate(db_query_duration_seconds_count[5m])) by (operation, command)",
+          "legendFormat": "{{operation}} {{command}}"
+        }
+      ],
+      "title": "DB Queries Per Operation",
       "type": "timeseries"
     }
   ],
