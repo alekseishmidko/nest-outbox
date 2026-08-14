@@ -13,6 +13,7 @@ import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
+import { UpdateOrderStatusPessimisticDto } from '../dto/update-order-status-pessimistic.dto';
 import { OrdersService } from '../services/orders.service';
 
 @ApiTags('orders')
@@ -82,5 +83,16 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(id, dto);
+  }
+
+  @Patch(':id/status/pessimistic')
+  @ApiOperation({
+    summary: 'Изменить статус внутри транзакции с SELECT ... FOR UPDATE',
+  })
+  updateStatusPessimistic(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusPessimisticDto,
+  ) {
+    return this.ordersService.updateStatusPessimistic(id, dto.status);
   }
 }

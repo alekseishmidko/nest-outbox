@@ -502,6 +502,72 @@ export class OrdersRepository {
   }
 
   /**
+   * Безопасно меняет статус, удерживая exclusive row lock до commit.
+   * Ожидающие конкурентные транзакции продолжат работу только после его снятия.
+   */
+  async updateStatusPessimistic(
+    id: number,
+    status: OrderStatus,
+  ): Promise<OrderRecord | null> {
+    const connection = await this.pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+      const current = await this.findByIdForUpdate(connection, id);
+
+      if (!current) {
+        await connection.rollback();
+        return null;
+      }
+
+      await connection.execute(
+        `
+          UPDATE orders
+          SET status = ?, version = version + 1
+          WHERE id = ?
+        `,
+        [status, id],
+      );
+      const updated = await this.findByIdOrThrow(connection, id);
+      await connection.commit();
+
+      return updated;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /** Читает и блокирует заказ до завершения текущей транзакции. */
+  private async findByIdForUpdate(
+    connection: PoolConnection,
+    id: number,
+  ): Promise<OrderRecord | null> {
+    const [rows] = await connection.query<OrderRow[]>(
+      `
+        SELECT
+          id,
+          user_id,
+          map_id,
+          status,
+          total_amount,
+          version,
+          created_at,
+          updated_at
+        FROM orders
+        WHERE id = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [id],
+    );
+
+    return rows[0] ? this.toRecord(rows[0]) : null;
+  }
+
+  /**
    * Общий helper для выборки заказов по внешнему ключу.
    *
    * Имя колонки ограничено union-типом, поэтому пользовательский ввод не может

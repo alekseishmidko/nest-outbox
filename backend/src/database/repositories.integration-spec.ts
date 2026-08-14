@@ -1,8 +1,10 @@
+import { RowDataPacket } from 'mysql2';
 import { Pool } from 'mysql2/promise';
 import { MapsRepository } from '../maps/repositories/maps.repository';
 import { MediaRepository } from '../media/repositories/media.repository';
 import { OrdersRepository } from '../orders/repositories/orders.repository';
 import { OrderStatus } from '../orders/dto/order-status.dto';
+import { OptimisticLockConflictError } from '../orders/types/optimistic-lock-conflict.error';
 import { OutboxEventStatus } from '../outbox/dto/outbox-event-status.dto';
 import { OutboxRepository } from '../outbox/repositories/outbox.repository';
 import { UsersRepository } from '../users/repositories/users.repository';
@@ -171,4 +173,122 @@ describeIntegration('Repositories integration', () => {
     expect(firstClaim[0]?.status).toBe(OutboxEventStatus.Processing);
     expect(secondClaim).toHaveLength(0);
   });
+
+  it('повторяет транзакцию создания заказа после реального MySQL errno 1213', async () => {
+    const { userId, mapId } = await createOrderDependencies('deadlock-retry');
+
+    await pool.query(`
+      CREATE TABLE deadlock_retry_probe (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        remaining_failures TINYINT UNSIGNED NOT NULL
+      ) ENGINE = MEMORY;
+      INSERT INTO deadlock_retry_probe VALUES (1, 1);
+      CREATE TRIGGER orders_deadlock_once
+      BEFORE INSERT ON orders
+      FOR EACH ROW
+      BEGIN
+        IF (SELECT remaining_failures FROM deadlock_retry_probe WHERE id = 1) > 0 THEN
+          UPDATE deadlock_retry_probe SET remaining_failures = 0 WHERE id = 1;
+          SIGNAL SQLSTATE '40001'
+            SET MYSQL_ERRNO = 1213, MESSAGE_TEXT = 'Deadlock found when trying to get lock';
+        END IF;
+      END
+    `);
+
+    try {
+      const order = await ordersRepository.createWithOutbox({
+        userId,
+        mapId,
+        totalAmount: 25,
+      });
+      const [probeRows] = await pool.query<
+        Array<RowDataPacket & { remaining_failures: number }>
+      >('SELECT remaining_failures FROM deadlock_retry_probe WHERE id = 1');
+
+      expect(order.id).toBeGreaterThan(0);
+      expect(probeRows[0]?.remaining_failures).toBe(0);
+    } finally {
+      await pool.query('DROP TRIGGER IF EXISTS orders_deadlock_once');
+      await pool.query('DROP TABLE IF EXISTS deadlock_retry_probe');
+    }
+  });
+
+  it('обнаруживает конфликт optimistic locking по устаревшей version', async () => {
+    const { userId, mapId } = await createOrderDependencies('optimistic');
+    const order = await ordersRepository.createWithOutbox({
+      userId,
+      mapId,
+      totalAmount: 30,
+    });
+
+    const updated = await ordersRepository.updateStatus(
+      order.id,
+      OrderStatus.Paid,
+      order.version,
+    );
+
+    expect(updated?.version).toBe(order.version + 1);
+    await expect(
+      ordersRepository.updateStatus(
+        order.id,
+        OrderStatus.Cancelled,
+        order.version,
+      ),
+    ).rejects.toBeInstanceOf(OptimisticLockConflictError);
+  });
+
+  it('SELECT FOR UPDATE удерживает row lock до завершения транзакции', async () => {
+    const { userId, mapId } = await createOrderDependencies('pessimistic');
+    const order = await ordersRepository.createWithOutbox({
+      userId,
+      mapId,
+      totalAmount: 40,
+    });
+    const blocker = await pool.getConnection();
+
+    try {
+      await blocker.beginTransaction();
+      await blocker.query('SELECT id FROM orders WHERE id = ? FOR UPDATE', [
+        order.id,
+      ]);
+
+      let completed = false;
+      const updatePromise = ordersRepository
+        .updateStatusPessimistic(order.id, OrderStatus.Completed)
+        .then((result) => {
+          completed = true;
+          return result;
+        });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(completed).toBe(false);
+
+      await blocker.commit();
+      const updated = await updatePromise;
+      expect(updated?.status).toBe(OrderStatus.Completed);
+      expect(updated?.version).toBe(order.version + 1);
+    } finally {
+      await blocker.rollback();
+      blocker.release();
+    }
+  });
+
+  async function createOrderDependencies(prefix: string): Promise<{
+    userId: number;
+    mapId: number;
+  }> {
+    const user = await usersRepository.create({
+      email: `${prefix}@example.com`,
+      name: prefix,
+      avatarSeed: prefix,
+    });
+    const map = await mapsRepository.create({
+      title: `${prefix} map`,
+      latitude: 10,
+      longitude: 20,
+      ownerUserId: user.id,
+    });
+
+    return { userId: user.id, mapId: map.id };
+  }
 });
