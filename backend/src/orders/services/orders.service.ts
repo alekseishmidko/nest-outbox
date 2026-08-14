@@ -123,6 +123,23 @@ export class OrdersService {
     return order;
   }
 
+  /** Изменяет статус внутри транзакции с `SELECT ... FOR UPDATE`. */
+  async updateStatusPessimistic(
+    id: number,
+    status: UpdateOrderStatusDto['status'],
+  ): Promise<OrderRecord> {
+    const order = await this.ordersRepository.updateStatusPessimistic(
+      id,
+      status,
+    );
+
+    if (!order) {
+      throw new NotFoundException(`Заказ ${id} не найден`);
+    }
+
+    return order;
+  }
+
   /**
    * Нормализует HTTP header `Idempotency-Key`.
    */

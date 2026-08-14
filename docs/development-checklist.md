@@ -463,13 +463,13 @@
   - [x] Добавить `version` в таблицу, где удобно тренировать конкурентные обновления, например `orders`.
   - [x] Обновлять запись через условие `WHERE id = ? AND version = ?`.
   - [x] При конфликте версии возвращать понятную API-ошибку `409 Conflict`.
-  - Добавить pessimistic locking через `SELECT ... FOR UPDATE`.
-  - Реализовать пример безопасного изменения заказа внутри транзакции с блокировкой строки.
-  - Сравнить optimistic и pessimistic locking по UX, latency и риску конфликтов.
-  - Добавить integration-тесты на deadlock retry.
-  - Добавить integration-тесты на optimistic locking conflict.
-  - Добавить integration-тесты на `SELECT ... FOR UPDATE`.
-  - Добавить e2e-тесты API для конфликтов конкурентного обновления.
+  - [x] Добавить pessimistic locking через `SELECT ... FOR UPDATE`.
+  - [x] Реализовать пример безопасного изменения заказа внутри транзакции с блокировкой строки.
+  - [x] Сравнить optimistic и pessimistic locking по UX, latency и риску конфликтов.
+  - [x] Добавить integration-тесты на deadlock retry.
+  - [x] Добавить integration-тесты на optimistic locking conflict.
+  - [x] Добавить integration-тесты на `SELECT ... FOR UPDATE`.
+  - [x] Добавить e2e-тесты API для конфликтов конкурентного обновления.
   - Добавить метрики: deadlock count, transaction retry count, lock wait duration.
   - Зафиксировать выводы: когда выбирать optimistic locking, когда pessimistic locking, где retry безопасен, а где может создать дубли.
 

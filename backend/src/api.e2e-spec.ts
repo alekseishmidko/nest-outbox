@@ -202,4 +202,36 @@ describeE2e('API e2e', () => {
         expect(response.body.details).toEqual(expect.any(Array));
       });
   });
+
+  it('возвращает 409 одному из конкурентных optimistic updates', async () => {
+    const server = app.getHttpServer();
+    const user = await request(server).post('/users').send({
+      email: 'optimistic-e2e@example.com',
+      name: 'Optimistic E2E',
+      avatarSeed: 'optimistic-e2e',
+    });
+    const map = await request(server).post('/maps').send({
+      title: 'Optimistic E2E map',
+      latitude: 10,
+      longitude: 20,
+      ownerUserId: user.body.id,
+    });
+    const order = await request(server).post('/orders').send({
+      userId: user.body.id,
+      mapId: map.body.id,
+      totalAmount: 50,
+    });
+    const payload = { status: 'paid', version: order.body.version };
+
+    const responses = await Promise.all([
+      request(server).patch(`/orders/${order.body.id}/status`).send(payload),
+      request(server).patch(`/orders/${order.body.id}/status`).send(payload),
+    ]);
+    const statuses = responses.map((response) => response.status).sort();
+
+    expect(statuses).toEqual([200, 409]);
+    expect(
+      responses.find((response) => response.status === 409)?.body.message,
+    ).toContain('устарела');
+  });
 });
