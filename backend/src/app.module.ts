@@ -11,6 +11,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { OrdersModule } from './orders/orders.module';
 import { OutboxModule } from './outbox/outbox.module';
 import { ReportsModule } from './reports/reports.module';
+import { RoutesModule } from './routes/routes.module';
 import { SeedModule } from './seed/seed.module';
 import { TransactionsLabModule } from './transactions-lab/transactions-lab.module';
 import { UsersModule } from './users/users.module';
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     OrdersModule,
     OutboxModule,
     ReportsModule,
+    RoutesModule,
     SeedModule,
     TransactionsLabModule,
     UsersModule,

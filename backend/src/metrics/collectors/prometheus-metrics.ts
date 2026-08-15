@@ -88,3 +88,20 @@ export const dbQueryDurationSeconds = new Histogram({
   buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
   registers: [metricsRegistry],
 });
+
+/** Количество запросов подбора маршрута по выбранной стратегии. */
+export const routeSearchTotal = new Counter({
+  name: 'route_search_total',
+  help: 'Количество запросов подбора маршрута.',
+  labelNames: ['strategy', 'result'] as const,
+  registers: [metricsRegistry],
+});
+
+/** Длительность подбора маршрута. */
+export const routeSearchDurationSeconds = new Histogram({
+  name: 'route_search_duration_seconds',
+  help: 'Длительность подбора маршрута в секундах.',
+  labelNames: ['strategy', 'result'] as const,
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
+  registers: [metricsRegistry],
+});
