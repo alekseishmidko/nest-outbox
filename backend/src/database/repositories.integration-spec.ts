@@ -7,6 +7,7 @@ import { OrderStatus } from '../orders/dto/order-status.dto';
 import { OptimisticLockConflictError } from '../orders/types/optimistic-lock-conflict.error';
 import { OutboxEventStatus } from '../outbox/dto/outbox-event-status.dto';
 import { OutboxRepository } from '../outbox/repositories/outbox.repository';
+import { RoutesRepository } from '../routes/repositories/routes.repository';
 import { UsersRepository } from '../users/repositories/users.repository';
 import {
   createDatabaseTestKit,
@@ -25,6 +26,7 @@ describeIntegration('Repositories integration', () => {
   let ordersRepository: OrdersRepository;
   let mediaRepository: MediaRepository;
   let outboxRepository: OutboxRepository;
+  let routesRepository: RoutesRepository;
 
   beforeAll(async () => {
     kit = await createDatabaseTestKit('repositories_integration');
@@ -34,6 +36,7 @@ describeIntegration('Repositories integration', () => {
     ordersRepository = new OrdersRepository(pool);
     mediaRepository = new MediaRepository(pool);
     outboxRepository = new OutboxRepository(pool);
+    routesRepository = new RoutesRepository(pool);
   });
 
   beforeEach(async () => {
@@ -271,6 +274,36 @@ describeIntegration('Repositories integration', () => {
       await blocker.rollback();
       blocker.release();
     }
+  });
+
+  it('находит ближайшие карты реальным ST_Distance_Sphere запросом', async () => {
+    const user = await usersRepository.create({
+      email: 'routes@example.com',
+      name: 'Routes',
+      avatarSeed: 'routes',
+    });
+    await mapsRepository.create({
+      title: 'Near',
+      latitude: 10.01,
+      longitude: 20.01,
+      ownerUserId: user.id,
+    });
+    await mapsRepository.create({
+      title: 'Far',
+      latitude: 20,
+      longitude: 30,
+      ownerUserId: user.id,
+    });
+
+    const nearby = await routesRepository.findNearby({
+      latitude: 10,
+      longitude: 20,
+      radiusKm: 5,
+      limit: 10,
+    });
+
+    expect(nearby.map((map) => map.title)).toEqual(['Near']);
+    expect(nearby[0]?.distanceKm).toBeGreaterThan(0);
   });
 
   async function createOrderDependencies(prefix: string): Promise<{

@@ -234,4 +234,63 @@ describeE2e('API e2e', () => {
       responses.find((response) => response.status === 409)?.body.message,
     ).toContain('устарела');
   });
+
+  it('считает расстояние, nearby и direct route через routes API', async () => {
+    const server = app.getHttpServer();
+    const user = await request(server)
+      .post('/users')
+      .send({
+        email: 'routes-e2e@example.com',
+        name: 'Routes E2E',
+        avatarSeed: 'routes-e2e',
+      })
+      .expect(201);
+    const origin = await request(server)
+      .post('/maps')
+      .send({
+        title: 'Origin',
+        latitude: 10,
+        longitude: 20,
+        ownerUserId: user.body.id,
+      })
+      .expect(201);
+    const destination = await request(server)
+      .post('/maps')
+      .send({
+        title: 'Destination',
+        latitude: 10.1,
+        longitude: 20.1,
+        ownerUserId: user.body.id,
+      })
+      .expect(201);
+
+    await request(server)
+      .post('/routes/distance')
+      .send({
+        origin: { latitude: 10, longitude: 20 },
+        destination: { latitude: 10.1, longitude: 20.1 },
+      })
+      .expect(201)
+      .expect((response) =>
+        expect(response.body.distanceKm).toBeGreaterThan(0),
+      );
+    await request(server)
+      .get('/routes/nearby')
+      .query({ latitude: 10, longitude: 20, radiusKm: 20, limit: 10 })
+      .expect(200)
+      .expect((response) => expect(response.body).toHaveLength(2));
+    await request(server)
+      .post('/routes/search')
+      .send({
+        originMapId: origin.body.id,
+        destinationMapId: destination.body.id,
+        candidateRadiusKm: 20,
+        limit: 10,
+      })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.strategy).toBe('direct_geodesic_with_candidates');
+        expect(response.body.directDistanceKm).toBeGreaterThan(0);
+      });
+  });
 });
