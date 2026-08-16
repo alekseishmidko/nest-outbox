@@ -6,7 +6,8 @@ import { IsolationComparisonResult } from '../types/isolation-comparison-result.
 /**
  * Сервис учебных транзакционных сценариев.
  *
- * Формирует понятный API-ответ поверх низкоуровневых SQL-демонстраций.
+ * Цель: сформировать понятный доменный ответ поверх SQL-демонстраций.
+ * Возможные ошибки: методы передают ошибки repository без маскирования.
  */
 @Injectable()
 export class TransactionsLabService {
@@ -16,6 +17,9 @@ export class TransactionsLabService {
 
   /**
    * Демонстрирует non-repeatable read на двух уровнях изоляции.
+   *
+   * @returns Сравнение результатов `READ COMMITTED` и `REPEATABLE READ`.
+   * @throws Ошибку MySQL при сбое подготовки, чтения или commit/rollback.
    */
   async demonstrateNonRepeatableRead(): Promise<IsolationComparisonResult> {
     const results =
@@ -33,6 +37,9 @@ export class TransactionsLabService {
 
   /**
    * Демонстрирует phantom read на двух уровнях изоляции.
+   *
+   * @returns Сравнение количества строк до и после конкурентной вставки.
+   * @throws Ошибку MySQL при сбое подготовки, чтения или commit/rollback.
    */
   async demonstratePhantomRead(): Promise<IsolationComparisonResult> {
     const results = await this.transactionsLabRepository.comparePhantomRead();
@@ -49,6 +56,9 @@ export class TransactionsLabService {
 
   /**
    * Демонстрирует deadlock на двух транзакциях.
+   *
+   * @returns Итог обеих транзакций и признак `ER_LOCK_DEADLOCK`.
+   * @throws Ошибку MySQL, если deadlock-сценарий не удалось запустить.
    */
   async simulateDeadlock(): Promise<DeadlockSimulationResult> {
     const results = await this.transactionsLabRepository.simulateDeadlock();

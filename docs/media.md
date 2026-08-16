@@ -10,6 +10,9 @@
 - `@dicebear/core`: генерация avatar.
 - `@dicebear/collection`: набор стилей DiceBear, в проекте используется `identicon`.
 
+Avatar генерируется как SVG `256×256`, QR-code — как PNG с correction level
+`M`, margin `2` и scale `8`.
+
 ## Структура
 
 - `controllers`: HTTP API для генерации и получения media asset.
@@ -42,7 +45,7 @@ MEDIA_STORAGE_MODE=database
 ```env
 MEDIA_STORAGE_MODE=local-file
 MEDIA_LOCAL_STORAGE_DIR=/app/storage/media
-MEDIA_PUBLIC_BASE_URL=http://localhost:9000/media-assets
+MEDIA_PUBLIC_BASE_URL=
 ```
 
 - `content_base64`: `NULL`.
@@ -51,6 +54,9 @@ MEDIA_PUBLIC_BASE_URL=http://localhost:9000/media-assets
 - `metadata.publicUrl`: публичный URL, если задан `MEDIA_PUBLIC_BASE_URL`.
 
 В Docker Compose каталог `/app/storage/media` вынесен в отдельный volume.
+Сам backend сейчас не раздает этот каталог как static files. `MEDIA_PUBLIC_BASE_URL`
+следует задавать только после подключения отдельного файлового web server/CDN;
+MinIO URL нельзя использовать для local-file volume.
 
 ### `s3-compatible`
 
@@ -94,7 +100,9 @@ HTTP/controller слой не выбирает storage backend и не знае�
 Ответ содержит:
 
 - `asset`: сохраненная запись `media_assets`.
-- `dataUrl`: готовый `data:image/svg+xml;base64,...`, сформированный из результата генерации независимо от storage mode.
+- `dataUrl`: готовый `data:image/svg+xml;base64,...` для только что созданного
+  результата. При повторном чтении deduplicated external/file asset контент не
+  загружается обратно, поэтому `dataUrl` может быть пустым.
 
 ### POST `/media/maps/:mapId/qr`
 
@@ -125,11 +133,27 @@ HTTP/controller слой не выбирает storage backend и не знае�
 Ответ содержит:
 
 - `asset`: сохраненная запись `media_assets`.
-- `dataUrl`: готовый `data:image/png;base64,...`, сформированный из результата генерации независимо от storage mode.
+- `dataUrl`: готовый `data:image/png;base64,...` для только что созданного
+  результата; для ранее существующего file/external asset он может быть пустым.
 
 ### GET `/media/:id`
 
 Возвращает сохраненный media asset по ID.
+
+Endpoint возвращает запись/metadata, а не stream бинарного файла. В режиме
+`database` содержимое доступно в `contentBase64`; в `local-file` и
+`s3-compatible` клиент использует `filePath`/`metadata.publicUrl`, если публичный
+URL настроен и storage действительно разрешает чтение.
+
+## Deduplication
+
+Перед генерацией сервис ищет существующий asset:
+
+- avatar — по `userId` и `seed` в metadata;
+- QR-code — по `mapId` и payload в metadata.
+
+Это снижает повторную генерацию при retry Outbox. На уровне Outbox дополнительную
+защиту дает уникальный idempotency key в `processed_events`.
 
 ## Связь с Outbox
 
@@ -141,7 +165,9 @@ HTTP/controller слой не выбирает storage backend и не знае�
 - генерирует avatar для пользователя;
 - генерирует QR-code для карты с payload события.
 
-На текущем этапе `OutboxService.handleEvent()` уже маршрутизирует событие в handler. Полноценный polling worker будет добавлен отдельным шагом в разделе Outbox.
+`OutboxPublisher` забирает событие polling-механизмом, а
+`OutboxService.handleEvent()` маршрутизирует его в handler. При ошибке генерации
+событие проходит retry policy; после исчерпания попыток становится `dead_letter`.
 
 ## Примеры
 
@@ -166,3 +192,15 @@ curl -X POST http://localhost:3000/media/maps/1/qr \
 ```bash
 curl http://localhost:3000/media/1
 ```
+
+## Ошибки и ограничения
+
+- Несуществующий пользователь, карта или asset возвращает `404`.
+- DTO ограничивает seed, URL и payload по длине; некорректный URL возвращает `400`.
+- `database` упрощает чтение, но увеличивает размер MySQL и API-ответов.
+- `local-file` требует persistent volume и общей файловой системы при нескольких
+  backend-инстансах.
+- `s3-compatible` реализует PUT через AWS Signature V4; lifecycle, CDN, private
+  download URLs и удаление orphan objects пока не реализованы.
+- Запись объекта и строки `media_assets` не является распределенной транзакцией:
+  сбой между операциями может оставить orphan object/file.

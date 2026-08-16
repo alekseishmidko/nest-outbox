@@ -7,8 +7,9 @@ import { TransactionsLabService } from './services/transactions-lab.service';
 /**
  * Учебный модуль конкурентных транзакций.
  *
- * Нужен для практики isolation levels, аномалий чтения и deadlock simulation
- * на реальной MySQL/InnoDB базе.
+ * Цель: объединить API, service и repository для практики isolation levels,
+ * аномалий чтения и deadlock simulation на реальной MySQL/InnoDB базе.
+ * Модуль не принимает входных параметров и экспортирует HTTP endpoints.
  */
 @Module({
   imports: [DatabaseModule],

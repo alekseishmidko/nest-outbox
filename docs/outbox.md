@@ -4,6 +4,29 @@
 
 Outbox реализует доставку доменных событий без брокеров сообщений. Бизнес-операция пишет данные и событие в одну MySQL-транзакцию, а `OutboxPublisher` позднее забирает событие из таблицы `outbox_events`.
 
+Паттерн устраняет dual-write между бизнес-таблицей и публикацией события: после
+commit существуют обе записи, после rollback — ни одной. Гарантия обработки при
+этом остается **at least once**, поэтому side effects обязаны быть идемпотентными.
+
+## Схема `outbox_events`
+
+| Поле | Назначение |
+| --- | --- |
+| `id` | Идентификатор и порядок события |
+| `event_type` | Например, `order.created` |
+| `aggregate_type`, `aggregate_id` | Тип и ID бизнес-агрегата |
+| `payload` | JSON-снимок данных обработчика |
+| `status` | Состояние жизненного цикла |
+| `attempts` | Число неуспешных обработок |
+| `next_retry_at` | Когда failed-событие снова становится due |
+| `processed_at` | Время успешного завершения |
+| `error` | Последняя ошибка, обрезанная worker до 4000 символов |
+| `manual_retry_reason` | Audit-причина ручного retry |
+| `created_at` | Время создания события |
+
+Основной polling-индекс — `(status, next_retry_at)`, дополнительные индексы
+поддерживают поиск по aggregate и времени создания.
+
 ## Создание заказа
 
 `OrdersRepository.createWithOutbox()` делает две записи в одной транзакции:
@@ -27,9 +50,20 @@ Outbox реализует доставку доменных событий бе�
 
 `OutboxPublisher` запускается вместе с Nest-приложением и периодически вызывает `processDueBatch()`.
 
+Один tick выполняет следующие шаги:
+
+1. Не запускается, если предыдущий tick еще работает или начался shutdown.
+2. В короткой транзакции выбирает due `pending`/`failed` события.
+3. Блокирует строки через `FOR UPDATE SKIP LOCKED`, меняет их на `processing` и
+   делает commit.
+4. Последовательно передает события в `OutboxService` вне claim-транзакции.
+5. Резервирует idempotency key, выполняет handler и фиксирует `processed` либо
+   планирует retry/dead letter.
+6. Обновляет Prometheus counters, duration и gauge статусов.
+
 Настройки:
 
-| Env | По умолчанию | Назначение |
+| Env | Default приложения | Назначение |
 | --- | --- | --- |
 | `OUTBOX_POLL_INTERVAL_MS` | `5000` | Интервал polling |
 | `OUTBOX_BATCH_SIZE` | `10` | Размер пачки событий |
@@ -38,6 +72,9 @@ Outbox реализует доставку доменных событий бе�
 | `OUTBOX_RETRY_MAX_DELAY_MS` | `60000` | Максимальная задержка retry |
 | `OUTBOX_RETRY_JITTER_MS` | `0` | Случайный jitter для retry |
 | `OUTBOX_SHUTDOWN_TIMEOUT_MS` | `10000` | Сколько ждать текущий tick при shutdown |
+
+Docker Compose задает более частый polling `1000` мс и jitter `250` мс. Если
+переменная не передана приложению вообще, используются defaults из таблицы.
 
 ## Блокировка
 
@@ -132,6 +169,9 @@ order.created:order:123
 
 Новые типы событий нужно подключать через `OutboxService.handleEvent()`.
 
+Неизвестный `event_type` считается ошибкой обработки и проходит обычную retry
+policy; после исчерпания попыток он попадет в `dead_letter`.
+
 ## Graceful shutdown
 
 При остановке Nest-приложения `OutboxPublisher`:
@@ -140,3 +180,37 @@ order.created:order:123
 - не начинает новые tick;
 - ждет завершения текущего tick до `OUTBOX_SHUTDOWN_TIMEOUT_MS`;
 - пишет лог об остановке.
+
+## API наблюдения
+
+```http
+GET /outbox/events?status=failed&limit=20&offset=0
+GET /outbox/events/:id
+POST /outbox/events/:id/retry
+```
+
+Ручной retry должен выполняться после устранения причины ошибки. Он не отменяет
+уже совершенный внешний side effect; защитой от его повторения служит
+`processed_events`.
+
+## Ограничения без брокера
+
+- Polling добавляет задержку до следующего tick и постоянную нагрузку на MySQL.
+- Таблица растет; нужна политика retention/архивации обработанных событий.
+- Нет broker partitions, consumer groups, встроенного replay и отдельного DLQ UI.
+- Ordering гарантируется только выборкой по `created_at`, но параллельные worker’ы
+  могут завершить разные события не по порядку.
+- Событие, оставшееся в `processing` после аварийного завершения процесса, сейчас
+  автоматически не возвращается в `pending`; нужен lease/locked-at recovery job.
+- Reservation со статусом `processing`, оставшаяся после crash между side effect
+  и финальной отметкой, требует reconciliation. Нельзя доказать атомарность MySQL
+  и произвольного внешнего storage одной локальной транзакцией.
+- Текущий idempotency key строится без `event.id`; повторное легитимное событие
+  того же типа для того же aggregate будет считаться уже обработанным. Для таких
+  доменов ключ нужно проектировать по уникальному business operation/event ID.
+- MySQL становится одновременно business DB и event transport, поэтому всплеск
+  событий конкурирует с API за connections, I/O и locks.
+
+Для учебного приложения это осознанный компромисс. При росте throughput,
+требованиях к длительному retention или независимому масштабированию consumers
+стоит публиковать Outbox в Kafka/RabbitMQ/NATS через отдельный relay.
