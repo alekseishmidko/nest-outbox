@@ -15,8 +15,10 @@ type DeadlockMysqlError = MysqlError & {
 /**
  * Repository учебных транзакционных сценариев.
  *
- * Открывает отдельные MySQL-соединения для имитации двух параллельных сессий
- * и держит весь SQL демонстраций вне controller/service-слоя.
+ * Цель: открыть отдельные MySQL-соединения для параллельных сессий и держать
+ * SQL демонстраций вне controller/service-слоя.
+ * Возможные ошибки: получение соединения, SQL, commit и rollback могут
+ * завершиться ошибкой MySQL; соединения освобождаются в `finally`.
  */
 @Injectable()
 export class TransactionsLabRepository {
@@ -29,6 +31,9 @@ export class TransactionsLabRepository {
 
   /**
    * Воспроизводит non-repeatable read на поддерживаемых уровнях изоляции.
+   *
+   * @returns Результат первого и второго чтения для каждого уровня изоляции.
+   * @throws Ошибку MySQL при невозможности выполнить любой этап сценария.
    */
   async compareNonRepeatableRead(): Promise<IsolationScenarioResult[]> {
     const results: IsolationScenarioResult[] = [];
@@ -42,6 +47,9 @@ export class TransactionsLabRepository {
 
   /**
    * Воспроизводит phantom read на поддерживаемых уровнях изоляции.
+   *
+   * @returns Количество строк до и после вставки для каждого уровня изоляции.
+   * @throws Ошибку MySQL при невозможности выполнить любой этап сценария.
    */
   async comparePhantomRead(): Promise<IsolationScenarioResult[]> {
     const results: IsolationScenarioResult[] = [];
@@ -55,6 +63,9 @@ export class TransactionsLabRepository {
 
   /**
    * Создает deadlock: две транзакции блокируют строки в противоположном порядке.
+   *
+   * @returns Итог каждой ветки: commit либо rollback с данными MySQL-ошибки.
+   * @throws Ошибку MySQL при подготовке таблицы или запуске транзакций.
    */
   async simulateDeadlock(): Promise<DeadlockStepResult[]> {
     const connectionA = await this.pool.getConnection();

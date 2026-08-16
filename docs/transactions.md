@@ -1,10 +1,23 @@
-# Transaction Lab
+# Транзакции MySQL/InnoDB
 
 ## Цель
 
 Этот документ нужен для тренировки конкурентного доступа к данным в MySQL/InnoDB: уровни изоляции, аномалии чтения, повторяемость чтения и базовые сценарии для ручного запуска в двух параллельных сессиях.
 
 Проверка выполнялась на локальном MySQL `8.4.11`.
+
+Проверяемый storage engine — `InnoDB`. Перед ручным экспериментом окружение
+можно подтвердить запросами:
+
+```sql
+SELECT VERSION() AS mysql_version;
+SHOW VARIABLES LIKE 'transaction_isolation';
+SHOW TABLE STATUS LIKE 'transaction_lab_items';
+```
+
+Результаты ниже относятся к обычным consistent reads. Они не должны
+автоматически переноситься на `SELECT ... FOR UPDATE`, `SELECT ... FOR SHARE`
+или на другой storage engine.
 
 ## Optimistic и pessimistic locking
 
@@ -510,3 +523,17 @@ curl -X POST http://localhost:3000/transactions-lab/deadlock
 - non-repeatable read не проявляется на `REPEATABLE READ` для обычных `SELECT`;
 - phantom read воспроизводится на `READ COMMITTED`;
 - phantom read не проявляется на `REPEATABLE READ` для обычных `SELECT`.
+
+## Стандарт JSDoc для транзакционного кода
+
+Публичные классы и методы документируются на русском языке. Комментарий должен
+отвечать на применимые к контракту вопросы:
+
+- цель класса или операции;
+- входные параметры через `@param`, если они есть;
+- возвращаемое значение через `@returns`;
+- ожидаемые категории ошибок через `@throws`.
+
+Приватные SQL-helper’ы документируются тогда, когда их блокировки, порядок
+операций или обработка ошибок неочевидны из кода. JSDoc не заменяет Swagger DTO,
+валидацию и тесты конкурентного поведения.

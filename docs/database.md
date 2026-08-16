@@ -4,7 +4,9 @@
 
 Схема БД создана для тренировки SQL, транзакций, индексов, `JOIN`, оптимизации запросов и паттерна Outbox без брокера сообщений.
 
-Основная миграция: `backend/database/migrations/001_create_core_tables.sql`.
+Миграции находятся в `backend/database/migrations` и применяются по имени файла.
+`001_create_core_tables.sql` создает базовую схему, последующие миграции добавляют
+надежность Outbox, optimistic locking и специализированные индексы.
 
 Практические запросы: `docs/sql-examples.md`.
 Seed и миграции: `docs/seed.md`.
@@ -78,6 +80,7 @@ Dry-run показывает, какие миграции будут приме�
 Индексы:
 
 - `idx_maps_owner_user_id`: ускоряет выборку карт пользователя.
+- `idx_maps_latitude_longitude`: bounding box для поиска ближайших карт.
 
 Связи:
 
@@ -94,6 +97,7 @@ Dry-run показывает, какие миграции будут приме�
 | `map_id` | `BIGINT UNSIGNED` | Карта |
 | `status` | `ENUM` | Статус заказа |
 | `total_amount` | `DECIMAL(10, 2) UNSIGNED` | Сумма заказа |
+| `version` | `INT UNSIGNED` | Версия строки для optimistic locking |
 | `created_at` | `TIMESTAMP(3)` | Дата создания |
 | `updated_at` | `TIMESTAMP(3)` | Дата обновления |
 
@@ -112,6 +116,11 @@ Dry-run показывает, какие миграции будут приме�
 - `idx_orders_status`
 - `idx_orders_user_id_status`
 - `idx_orders_map_id_status`
+- `idx_orders_user_created_id`
+- `idx_reports_orders_status_created_covering`
+- `idx_reports_orders_created_id`
+- `idx_reports_orders_user_amount`
+- `idx_reports_orders_map_amount`
 
 Связи:
 
@@ -140,6 +149,8 @@ Dry-run показывает, какие миграции будут приме�
 - `idx_media_assets_owner`: быстрый поиск медиа по владельцу.
 - `idx_media_assets_type`: фильтрация по типу медиа.
 - `idx_media_assets_created_at`: сортировка и анализ генерации по времени.
+- `idx_media_assets_owner_type_id`: поиск последнего media определенного типа
+  для владельца и covering сценарии activity report.
 
 ## `outbox_events`
 
@@ -198,6 +209,25 @@ Idempotency ledger для обработчиков Outbox.
 - `idx_processed_events_event`: поиск по типу события и агрегату.
 - `idx_processed_events_outbox_event_id`: связь с outbox event.
 
+## `idempotency_keys`
+
+Защищает `POST /orders` от повторного создания заказа после timeout/retry клиента.
+
+| Поле | Тип | Назначение |
+| --- | --- | --- |
+| `id` | `BIGINT UNSIGNED` | Primary key |
+| `idempotency_key` | `VARCHAR(255)` | Значение HTTP `Idempotency-Key` |
+| `request_hash` | `CHAR(64)` | SHA-256 нормализованного запроса |
+| `status` | `ENUM` | `processing` или `completed` |
+| `response_status_code` | `SMALLINT UNSIGNED` | Сохраненный HTTP status |
+| `response_body` | `JSON` | Сохраненный ответ для повтора |
+| `created_at`, `updated_at` | `TIMESTAMP(3)` | Audit timestamps |
+
+Индексы:
+
+- `uq_idempotency_keys_key`: один результат на ключ;
+- `idx_idempotency_keys_status_created_at`: поиск незавершенных записей.
+
 ## Почему `media_assets` без foreign key
 
 `media_assets` использует полиморфную связь через `owner_type` и `owner_id`. MySQL не может выразить такой foreign key напрямую, потому что одна колонка может ссылаться на разные таблицы.
@@ -212,3 +242,82 @@ Idempotency ledger для обработчиков Outbox.
 - смотреть влияние индексов на `JOIN`;
 - видеть стоимость выборки Outbox-событий;
 - измерять эффект в нагрузочных тестах.
+
+## Примеры SQL
+
+Заказы пользователя вместе с картами:
+
+```sql
+SELECT o.id, o.status, o.total_amount, o.version, m.title AS map_title
+FROM orders AS o
+JOIN maps AS m ON m.id = o.map_id
+WHERE o.user_id = ?
+ORDER BY o.created_at DESC
+LIMIT ?;
+```
+
+Агрегация по статусам:
+
+```sql
+SELECT status, COUNT(*) AS orders_count, SUM(total_amount) AS revenue
+FROM orders
+GROUP BY status
+ORDER BY orders_count DESC;
+```
+
+Проверка плана выполняется на конкретных параметрах:
+
+```sql
+EXPLAIN ANALYZE
+SELECT id, status, created_at
+FROM orders
+WHERE user_id = 1
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+Приложение передает значения через placeholders `?`; пользовательский ввод не
+подставляется в SQL-строку. Больше примеров находится в `docs/sql-examples.md`.
+
+## Транзакции и блокировки
+
+Создание заказа и Outbox-события атомарно:
+
+```sql
+START TRANSACTION;
+
+INSERT INTO orders (user_id, map_id, status, total_amount)
+VALUES (?, ?, 'pending', ?);
+
+INSERT INTO outbox_events (
+  event_type, aggregate_type, aggregate_id, payload, status, attempts
+)
+VALUES ('order.created', 'order', LAST_INSERT_ID(), ?, 'pending', 0);
+
+COMMIT;
+```
+
+Ошибка любой вставки приводит к `ROLLBACK`. Deadlock `ER_LOCK_DEADLOCK` повторяет
+всю транзакцию с ограниченным exponential backoff.
+
+Optimistic update использует версию, прочитанную клиентом:
+
+```sql
+UPDATE orders
+SET status = ?, version = version + 1
+WHERE id = ? AND version = ?;
+```
+
+Ноль измененных строк при существующем заказе означает version conflict и
+преобразуется в `409 Conflict`. Pessimistic-вариант выполняет
+`SELECT ... FOR UPDATE` и update в одной короткой транзакции. Уровни изоляции,
+аномалии чтения и результаты MySQL/InnoDB описаны в `docs/transactions.md`.
+
+## Целостность и ограничения
+
+- Foreign keys заказов и карт используют `ON DELETE RESTRICT`.
+- Полиморфный `media_assets.owner_id` не защищен foreign key.
+- `ENUM` требует миграции при добавлении нового статуса.
+- `DECIMAL` из `mysql2` читается строкой, чтобы не терять точность.
+- Индекс ускоряет чтение ценой места и дополнительных операций при записи;
+  необходимость каждого индекса проверяется через `EXPLAIN ANALYZE`.
