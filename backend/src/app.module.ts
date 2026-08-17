@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MapsModule } from './maps/maps.module';
@@ -40,6 +41,7 @@ import { UsersModule } from './users/users.module';
         },
       },
     }),
+    AuthModule,
     DatabaseModule,
     HealthModule,
     MapsModule,

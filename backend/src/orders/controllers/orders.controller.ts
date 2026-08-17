@@ -15,6 +15,11 @@ import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { UpdateOrderStatusPessimisticDto } from '../dto/update-order-status-pessimistic.dto';
 import { OrdersService } from '../services/orders.service';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { OwnershipGuard } from '../../auth/guards/ownership.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { RolesGuard } from '../../auth/guards/roles.guard';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -22,6 +27,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiHeader({
     name: 'Idempotency-Key',
     required: false,
@@ -39,12 +45,16 @@ export class OrdersController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({ summary: 'Получить список заказов' })
   findAll(@Query() query: ListOrdersQueryDto) {
     return this.ordersService.findAll(query);
   }
 
   @Get('reports/overview')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @ApiOperation({
     summary: 'Получить отчет заказов с JOIN между users, maps и orders',
   })
@@ -53,6 +63,7 @@ export class OrdersController {
   }
 
   @Get('users/:userId')
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Получить заказы пользователя' })
   findByUserId(
     @Param('userId', ParseIntPipe) userId: number,
@@ -62,6 +73,7 @@ export class OrdersController {
   }
 
   @Get('maps/:mapId')
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Получить заказы по карте' })
   findByMapId(
     @Param('mapId', ParseIntPipe) mapId: number,
@@ -71,12 +83,14 @@ export class OrdersController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Получить заказ по id' })
   findById(@Param('id', ParseIntPipe) id: number) {
     return this.ordersService.findById(id);
   }
 
   @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Изменить статус заказа с optimistic locking' })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -86,6 +100,7 @@ export class OrdersController {
   }
 
   @Patch(':id/status/pessimistic')
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({
     summary: 'Изменить статус внутри транзакции с SELECT ... FOR UPDATE',
   })
