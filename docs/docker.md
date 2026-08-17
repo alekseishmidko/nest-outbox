@@ -195,6 +195,10 @@ Compose читает `.env.local` или `.env.prod`. Переменные из 
 | `MYSQL_CONNECTION_LIMIT` | Максимум соединений backend pool | `10` по умолчанию приложения |
 | `LOG_LEVEL` | Минимальный уровень Pino | `debug` local, `info` production |
 | `SQL_SLOW_QUERY_THRESHOLD_MS` | Порог slow-query log | `100` |
+| `JWT_ACCESS_SECRET` | Подпись access JWT | обязательный секрет production |
+| `JWT_REFRESH_SECRET` | Подпись refresh JWT | обязательный секрет production |
+| `RATE_LIMIT_MAX` | Auth requests в окне | `10` |
+| `RATE_LIMIT_WINDOW_MS` | Окно rate limit | `60000` |
 
 ### Outbox
 

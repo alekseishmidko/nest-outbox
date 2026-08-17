@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { MapsController } from './controllers/maps.controller';
 import { MapsRepository } from './repositories/maps.repository';
@@ -11,7 +12,7 @@ import { MapsService } from './services/maps.service';
  * Хранит сущности `maps`, связанные с пользователями и QR-code генерацией.
  */
 @Module({
-  imports: [DatabaseModule, UsersModule],
+  imports: [DatabaseModule, UsersModule, AuthModule],
   controllers: [MapsController],
   providers: [MapsRepository, MapsService],
   exports: [MapsService],

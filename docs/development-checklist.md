@@ -523,14 +523,14 @@
   - [x] Observability: метрики latency поиска маршрута, количество route search запросов, логирование выбранной стратегии.
   - [x] Документация: создать `docs/routes.md` с формулами, SQL-примерами, индексами, ограничениями MVP и планом перехода к графовой модели.
 
-- [ ] Добавить auth и безопасность.
-  - JWT auth.
-  - Refresh tokens.
-  - Password hashing через `argon2` или `bcrypt`.
-  - Roles: `admin`, `user`.
-  - Guards.
-  - Ownership checks: пользователь не может смотреть чужие карты/заказы.
-  - Rate limiting.
+- [x] Добавить auth и безопасность.
+  - [x] JWT auth.
+  - [x] Refresh tokens.
+  - [x] Password hashing через `argon2` или `bcrypt`.
+  - [x] Roles: `admin`, `user`.
+  - [x] Guards.
+  - [x] Ownership checks: пользователь не может смотреть чужие карты/заказы.
+  - [x] Rate limiting.
 
 - [x] Расширить хранение media.
   - Поддержать storage mode `database`.

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { AuthModule } from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { OutboxController } from './controllers/outbox.controller';
 import { OrderCreatedOutboxHandler } from './handlers/order-created-outbox.handler';
@@ -13,7 +14,7 @@ import { OutboxPublisher } from './workers/outbox-publisher';
  * Обрабатывает события из таблицы `outbox_events` без брокера сообщений.
  */
 @Module({
-  imports: [DatabaseModule, MediaModule],
+  imports: [DatabaseModule, MediaModule, AuthModule],
   controllers: [OutboxController],
   providers: [
     OrderCreatedOutboxHandler,

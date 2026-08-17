@@ -55,12 +55,17 @@ Dry-run показывает, какие миграции будут приме�
 | `email` | `VARCHAR(320)` | Email пользователя |
 | `name` | `VARCHAR(255)` | Имя пользователя |
 | `avatar_seed` | `VARCHAR(128)` | Seed для генерации avatar |
+| `password_hash` | `VARCHAR(255)` nullable | Argon2id hash пароля |
+| `role` | `ENUM('admin', 'user')` | Роль доступа |
+| `refresh_token_hash` | `CHAR(64)` nullable | SHA-256 hash текущего refresh token |
+| `refresh_token_expires_at` | `TIMESTAMP(3)` nullable | Срок действия refresh token |
 | `created_at` | `TIMESTAMP(3)` | Дата создания |
 | `updated_at` | `TIMESTAMP(3)` | Дата обновления |
 
 Индексы:
 
 - `uq_users_email`: уникальный индекс по `email`.
+- `idx_users_role`: выборка пользователей по роли.
 
 ## `maps`
 

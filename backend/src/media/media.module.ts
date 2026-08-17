@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { AuthModule } from '../auth/auth.module';
 import { MediaController } from './controllers/media.controller';
 import { AvatarGenerator } from './generators/avatar.generator';
 import { QrCodeGenerator } from './generators/qr-code.generator';
@@ -13,7 +14,7 @@ import { MediaStorageService } from './storage/media-storage.service';
  * Отвечает за генерацию и хранение QR-code и avatar.
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule],
   controllers: [MediaController],
   providers: [
     AvatarGenerator,
