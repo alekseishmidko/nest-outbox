@@ -588,7 +588,154 @@
 - [ ] Этап 21: бизнес-модуль `routes`, расчет расстояний и подбор маршрута.
 - [ ] Этап 22: transaction lab, isolation levels, deadlocks и locking strategies.
 
-## 17. Definition of Done
+## 23. Следующий backlog: паттерны и инженерные практики
+
+Пункты ниже декомпозированы по приоритету. Для каждой инициативы сначала добавить
+документацию и тесты, затем реализацию и только после этого включать её в общий
+Definition of Done.
+
+### P0 — надежность и корректность данных
+
+- [x] Inbox pattern для входящих событий.
+  - [x] Создать миграцию таблицы `inbox_events` с `event_id UNIQUE`, типом события, payload, статусом, количеством попыток и timestamps.
+  - [x] Реализовать repository атомарного claim события и переходы `received → processing → processed/failed`.
+  - [x] Добавить защиту от повторной обработки одного `event_id`.
+  - [x] Добавить retry с backoff и dead-letter статусом.
+  - [x] Добавить integration-тесты повторной доставки и конкурентного claim.
+  - [x] Добавить метрики `inbox_processed_total`, `inbox_failed_total`, `inbox_lag_seconds`.
+  - [x] Создать `docs/inbox.md` с алгоритмом и ограничениями.
+
+- [ ] Transaction boundary и Unit of Work.
+  - [ ] Зафиксировать правило: controller не открывает транзакции, service задает бизнес-границу, repository выполняет SQL.
+  - [ ] Создать `UnitOfWork.run()` с передачей `PoolConnection` в несколько repository.
+  - [ ] Запретить использование глобального pool внутри callback транзакции.
+  - [ ] Добавить rollback-тест при ошибке второго repository.
+  - [ ] Добавить JSDoc на публичные методы Unit of Work.
+
+- [ ] Надежный Outbox worker.
+  - [ ] Добавить dead-letter причину и stack/error code в `outbox_events`.
+  - [ ] Реализовать административный requeue dead-letter событий.
+  - [ ] Добавить lease/fencing token для нескольких worker-инстансов.
+  - [ ] Добавить integration-тесты конкурирующих worker-ов.
+  - [ ] Добавить alert на backlog, возраст oldest event и dead-letter rate.
+
+- [ ] Усилить refresh-token security.
+  - [ ] Добавить `token_family_id`, `rotated_at`, `revoked_at`.
+  - [ ] Реализовать rotation с обнаружением повторного использования старого токена.
+  - [ ] Отзывать всю token family при reuse detection.
+  - [ ] Добавить unit/e2e-тесты refresh, logout, reuse и expiry.
+
+### P1 — масштабирование бизнес-логики
+
+- [ ] CQRS для `orders` и `users`.
+  - [ ] Выделить command handlers для создания заказа и изменения статуса.
+  - [ ] Выделить query handlers для overview, activity и pagination.
+  - [ ] Оставить controller тонким и перенести orchestration в handlers.
+  - [ ] Сохранить существующие HTTP-контракты.
+  - [ ] Добавить unit-тесты handlers и e2e-регрессию API.
+  - [ ] Создать `docs/cqrs.md` с критериями, когда CQRS не нужен.
+
+- [ ] Domain events и Process Manager/Saga.
+  - [ ] Описать события `OrderCreated`, `OrderStatusChanged`, `MediaGenerated`.
+  - [ ] Отделить доменное событие от инфраструктурной записи Outbox.
+  - [ ] Реализовать state machine заказа и допустимые переходы статусов.
+  - [ ] Добавить compensating action для неуспешной стадии процесса.
+  - [ ] Добавить integration-тесты resume после падения каждой стадии.
+
+- [ ] Specification pattern для фильтров.
+  - [ ] Создать спецификации ownership, status, nearby и date range.
+  - [ ] Реализовать композицию `and/or/not` без конкатенации небезопасного SQL.
+  - [ ] Покрыть каждую спецификацию unit-тестами SQL-параметров.
+  - [ ] Сравнить читаемость соотношения specification/query object в документации.
+
+- [ ] Audit log и soft delete.
+  - [ ] Добавить миграции `deleted_at`, `created_by`, `updated_by` где необходимо.
+  - [ ] Создать таблицу `audit_log` с actor, action, entity, before/after JSON и request id.
+  - [ ] Записывать изменения статуса заказа, ownership и ролей.
+  - [ ] Исключить soft-deleted записи из обычных запросов.
+  - [ ] Добавить integration-тесты аудита и восстановления доступа.
+
+- [ ] Redis-кэш и distributed rate limiting.
+  - [ ] Выбрать ключи и TTL для nearby routes, карт и read-heavy запросов.
+  - [ ] Добавить cache-aside с invalidation при изменении карты.
+  - [ ] Перенести rate limit counter в Redis для нескольких backend-инстансов.
+  - [ ] Реализовать fallback при недоступном Redis.
+  - [ ] Добавить метрики cache hit/miss и integration-тесты invalidation.
+
+### P1 — внешние зависимости и эксплуатация
+
+- [ ] Circuit breaker и timeout policy.
+  - [ ] Ввести единые timeout для storage, email, routing provider и платежей.
+  - [ ] Реализовать состояния `closed`, `open`, `half-open`.
+  - [ ] Ограничить retry и исключить retry для permanent errors.
+  - [ ] Добавить fallback или понятную ошибку API.
+  - [ ] Добавить метрики state changes, rejected calls и recovery time.
+  - [ ] Добавить integration-тесты timeout, open circuit и recovery.
+
+- [ ] Read models для отчетов.
+  - [ ] Зафиксировать медленные JOIN через slow-query metrics и `EXPLAIN ANALYZE`.
+  - [ ] Спроектировать read model для order overview и user activity.
+  - [ ] Обновлять read model через Outbox/domain events.
+  - [ ] Реализовать rebuild command из primary tables.
+  - [ ] Сравнить latency и консистентность с текущими JOIN-тестами.
+
+- [ ] Cursor pagination во всех больших коллекциях.
+  - [ ] Стандартизировать cursor `(created_at, id)` и формат ответа.
+  - [ ] Добавить composite indexes под каждый cursor query.
+  - [ ] Поддержать backward-compatible offset режим на переходный период.
+  - [ ] Добавить integration-тесты duplicate/missing rows при concurrent inserts.
+
+- [ ] SQL query objects и performance checks.
+  - [ ] Вынести сложные SQL-запросы в именованные query objects.
+  - [ ] Добавить snapshots/проверки обязательных predicates и параметров.
+  - [ ] Зафиксировать baseline latency и план `EXPLAIN ANALYZE`.
+  - [ ] Добавить performance-тесты на критичные JOIN, routes и pagination.
+
+- [ ] Readiness/liveness и graceful shutdown.
+  - [ ] Разделить `/health/live` и `/health/ready`.
+  - [ ] Проверять MySQL, Redis/storage и состояние worker в readiness.
+  - [ ] Останавливать HTTP, worker и pool в определенном порядке.
+  - [ ] Добавить timeout graceful shutdown и соответствующие тесты.
+
+### P2 — качество, безопасность и CI
+
+- [ ] Security hardening.
+  - [ ] Подключить Helmet, CSP, HSTS и secure headers.
+  - [ ] Добавить CSRF-защиту для cookie-based auth сценариев.
+  - [ ] Ограничить размер и частоту upload-запросов.
+  - [ ] Проверять MIME/content, запрещать path traversal и запускать antivirus hook.
+  - [ ] Добавить security regression-тесты ownership, file upload и headers.
+
+- [ ] Contract tests.
+  - [ ] Генерировать OpenAPI spec в CI.
+  - [ ] Проверять DTO, status codes и error envelope против контракта.
+  - [ ] Добавить consumer contract для ключевых endpoint-ов.
+  - [ ] Запретить breaking changes без изменения версии API.
+
+- [ ] Property-based и mutation testing.
+  - [ ] Генерировать координаты и проверять симметрию/неотрицательность расстояния.
+  - [ ] Проверять cursor pagination на случайных вставках.
+  - [ ] Проверять retry/backoff и idempotency на случайных последовательностях.
+  - [ ] Настроить mutation testing для locking, Outbox и ownership-кода.
+
+- [ ] Расширить k6 и CI.
+  - [ ] Добавить сценарии конкурентного update заказа.
+  - [ ] Добавить нагрузку на routes, login и rate limit.
+  - [ ] Добавить отдельные jobs security scan, contract tests и performance smoke.
+  - [ ] Сохранять отчеты и thresholds как CI artifacts.
+
+### Definition of Done для каждого пункта backlog
+
+- [ ] Есть миграции и rollback/операционная инструкция.
+- [ ] Есть unit-тесты бизнес-логики.
+- [ ] Есть integration-тесты SQL/конкурентности, если пункт связан с БД.
+- [ ] Есть e2e или contract-тест публичного API, если меняется API.
+- [ ] Есть structured logs, metrics и alerting для production-сценария.
+- [ ] Есть русскоязычный JSDoc публичных классов и методов.
+- [ ] Есть документация в `docs/` с целью, ограничениями и примером запуска.
+- [ ] Обновлены Docker/CI scripts и переменные окружения.
+
+## 24. Definition of Done
 
 - [ ] Приложение запускается через Docker для `local`.
 - [ ] Приложение запускается через Docker для `prod`.
