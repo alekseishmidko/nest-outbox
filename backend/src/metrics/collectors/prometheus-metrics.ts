@@ -105,3 +105,28 @@ export const routeSearchDurationSeconds = new Histogram({
   buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1],
   registers: [metricsRegistry],
 });
+
+/** Счетчик успешно обработанных Inbox-событий. */
+export const inboxProcessedTotal = new Counter({
+  name: 'inbox_processed_total',
+  help: 'Количество успешно обработанных Inbox-событий.',
+  labelNames: ['event_type'] as const,
+  registers: [metricsRegistry],
+});
+
+/** Счетчик ошибок обработки Inbox-событий. */
+export const inboxFailedTotal = new Counter({
+  name: 'inbox_failed_total',
+  help: 'Количество ошибок обработки Inbox-событий.',
+  labelNames: ['event_type'] as const,
+  registers: [metricsRegistry],
+});
+
+/** Задержка Inbox между приемом события и началом обработки. */
+export const inboxLagSeconds = new Histogram({
+  name: 'inbox_lag_seconds',
+  help: 'Задержка обработки Inbox-события от приема до обработки.',
+  labelNames: ['event_type'] as const,
+  buckets: [0.001, 0.01, 0.1, 1, 5, 30, 60, 300, 900],
+  registers: [metricsRegistry],
+});

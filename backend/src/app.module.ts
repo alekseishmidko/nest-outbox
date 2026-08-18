@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { InboxModule } from './inbox/inbox.module';
 import { MapsModule } from './maps/maps.module';
 import { MediaModule } from './media/media.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -44,6 +45,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     DatabaseModule,
     HealthModule,
+    InboxModule,
     MapsModule,
     MediaModule,
     MetricsModule,

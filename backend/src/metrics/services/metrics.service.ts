@@ -7,6 +7,9 @@ import {
   outboxFailedTotal,
   outboxProcessedTotal,
   outboxProcessingDurationSeconds,
+  inboxFailedTotal,
+  inboxLagSeconds,
+  inboxProcessedTotal,
 } from '../collectors/prometheus-metrics';
 
 /**
@@ -74,5 +77,17 @@ export class MetricsService {
    */
   setOutboxStatusCount(status: string, count: number): void {
     outboxEventsByStatus.set({ status }, count);
+  }
+
+  /** Записывает успешную обработку Inbox-события и его lag. */
+  observeInboxProcessed(eventType: string, lagSeconds: number): void {
+    inboxProcessedTotal.inc({ event_type: eventType });
+    inboxLagSeconds.observe({ event_type: eventType }, Math.max(0, lagSeconds));
+  }
+
+  /** Записывает ошибку обработки Inbox-события и его lag. */
+  observeInboxFailed(eventType: string, lagSeconds: number): void {
+    inboxFailedTotal.inc({ event_type: eventType });
+    inboxLagSeconds.observe({ event_type: eventType }, Math.max(0, lagSeconds));
   }
 }
