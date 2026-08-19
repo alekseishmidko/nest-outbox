@@ -605,12 +605,12 @@ Definition of Done.
   - [x] Добавить метрики `inbox_processed_total`, `inbox_failed_total`, `inbox_lag_seconds`.
   - [x] Создать `docs/inbox.md` с алгоритмом и ограничениями.
 
-- [ ] Transaction boundary и Unit of Work.
-  - [ ] Зафиксировать правило: controller не открывает транзакции, service задает бизнес-границу, repository выполняет SQL.
-  - [ ] Создать `UnitOfWork.run()` с передачей `PoolConnection` в несколько repository.
-  - [ ] Запретить использование глобального pool внутри callback транзакции.
-  - [ ] Добавить rollback-тест при ошибке второго repository.
-  - [ ] Добавить JSDoc на публичные методы Unit of Work.
+- [x] Transaction boundary и Unit of Work.
+  - [x] Зафиксировать правило: controller не открывает транзакции, service задает бизнес-границу, repository выполняет SQL.
+  - [x] Создать `UnitOfWork.run()` с передачей `PoolConnection` в несколько repository.
+  - [x] Запретить использование глобального pool внутри callback транзакции.
+  - [x] Добавить rollback-тест при ошибке второго repository.
+  - [x] Добавить JSDoc на публичные методы Unit of Work.
 
 - [ ] Надежный Outbox worker.
   - [ ] Добавить dead-letter причину и stack/error code в `outbox_events`.

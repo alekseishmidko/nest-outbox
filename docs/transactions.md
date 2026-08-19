@@ -1,5 +1,33 @@
 # Транзакции MySQL/InnoDB
 
+## Transaction boundary и Unit of Work
+
+В приложении действует правило слоев:
+
+- controller принимает HTTP-вход и не открывает транзакции;
+- service определяет границу одной бизнес-операции;
+- `UnitOfWork.run()` начинает, подтверждает и откатывает транзакцию;
+- repository выполняет SQL и получает `PoolConnection` из callback Unit of Work,
+  когда операция затрагивает несколько repository.
+
+Пример:
+
+```ts
+return this.unitOfWork.run(async (connection) => {
+  const user = await usersRepository.createInTransaction(connection, userDto);
+  const map = await mapsRepository.createInTransaction(connection, {
+    ...mapDto,
+    ownerUserId: user.id,
+  });
+  return { userId: user.id, mapId: map.id };
+});
+```
+
+Внутри callback нельзя обращаться к внедренному глобальному pool. Все SQL-операции
+должны получать тот же `PoolConnection`; иначе часть изменений может быть
+закоммичена независимо от основной транзакции. Это правило проверяется code
+review и integration-тестом rollback при ошибке второго repository.
+
 ## Цель
 
 Этот документ нужен для тренировки конкурентного доступа к данным в MySQL/InnoDB: уровни изоляции, аномалии чтения, повторяемость чтения и базовые сценарии для ручного запуска в двух параллельных сессиях.
