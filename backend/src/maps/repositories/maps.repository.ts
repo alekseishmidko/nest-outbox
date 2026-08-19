@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ResultSetHeader } from 'mysql2';
-import { Pool } from 'mysql2/promise';
+import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { CreateMapDto } from '../dto/create-map.dto';
 import { ListMapsQueryDto } from '../dto/list-maps-query.dto';
@@ -44,6 +44,33 @@ export class MapsRepository {
     );
 
     return this.findByIdOrThrow(result.insertId);
+  }
+
+  /** Создает карту через переданное соединение Unit of Work. */
+  async createInTransaction(
+    connection: PoolConnection,
+    dto: CreateMapDto,
+  ): Promise<MapRecord> {
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO maps (title, description, latitude, longitude, owner_user_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        dto.title,
+        dto.description ?? null,
+        dto.latitude,
+        dto.longitude,
+        dto.ownerUserId,
+      ],
+    );
+    const [rows] = await connection.execute<MapRow[]>(
+      `SELECT id, title, description, latitude, longitude, owner_user_id,
+              created_at, updated_at
+       FROM maps WHERE id = ? LIMIT 1`,
+      [result.insertId],
+    );
+    if (!rows[0])
+      throw new Error(`Map ${result.insertId} was not found after insert`);
+    return this.toRecord(rows[0]);
   }
 
   /**

@@ -15,6 +15,6 @@ import { MapsService } from './services/maps.service';
   imports: [DatabaseModule, UsersModule, AuthModule],
   controllers: [MapsController],
   providers: [MapsRepository, MapsService],
-  exports: [MapsService],
+  exports: [MapsService, MapsRepository],
 })
 export class MapsModule {}

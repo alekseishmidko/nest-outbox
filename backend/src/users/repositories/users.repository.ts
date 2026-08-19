@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ResultSetHeader } from 'mysql2';
-import { Pool } from 'mysql2/promise';
+import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { ListUsersQueryDto } from '../dto/list-users-query.dto';
@@ -39,6 +39,26 @@ export class UsersRepository {
     );
 
     return this.findByIdOrThrow(result.insertId);
+  }
+
+  /** Создает пользователя через переданное соединение Unit of Work. */
+  async createInTransaction(
+    connection: PoolConnection,
+    dto: CreateUserDto,
+  ): Promise<UserRecord> {
+    const avatarSeed = dto.avatarSeed ?? `${dto.email}:${Date.now()}`;
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO users (email, name, avatar_seed) VALUES (?, ?, ?)`,
+      [dto.email, dto.name, avatarSeed],
+    );
+    const [rows] = await connection.execute<UserRow[]>(
+      `SELECT id, email, name, avatar_seed, created_at, updated_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [result.insertId],
+    );
+    if (!rows[0])
+      throw new Error(`User ${result.insertId} was not found after insert`);
+    return this.toRecord(rows[0]);
   }
 
   /**
