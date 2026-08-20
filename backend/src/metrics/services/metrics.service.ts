@@ -5,6 +5,8 @@ import {
   metricsRegistry,
   outboxEventsByStatus,
   outboxFailedTotal,
+  outboxDeadLetterTotal,
+  outboxOldestEventAgeSeconds,
   outboxProcessedTotal,
   outboxProcessingDurationSeconds,
   inboxFailedTotal,
@@ -77,6 +79,16 @@ export class MetricsService {
    */
   setOutboxStatusCount(status: string, count: number): void {
     outboxEventsByStatus.set({ status }, count);
+  }
+
+  /** Обновляет возраст backlog Outbox. */
+  setOutboxOldestEventAge(ageSeconds: number): void {
+    outboxOldestEventAgeSeconds.set(Math.max(0, ageSeconds));
+  }
+
+  /** Увеличивает счетчик dead-letter переводов. */
+  observeOutboxDeadLetter(eventType: string): void {
+    outboxDeadLetterTotal.inc({ event_type: eventType });
   }
 
   /** Записывает успешную обработку Inbox-события и его lag. */

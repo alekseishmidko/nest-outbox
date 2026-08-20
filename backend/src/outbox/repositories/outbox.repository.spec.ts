@@ -14,7 +14,14 @@ describe('OutboxRepository', () => {
       next_retry_at: null,
       processed_at: null,
       error: null,
+      error_code: null,
+      error_stack: null,
+      dead_letter_reason: null,
       manual_retry_reason: null,
+      lease_owner: null,
+      lease_token: null,
+      lease_expires_at: null,
+      fencing_token: 0,
       created_at: new Date('2026-01-01T00:00:00.000Z'),
     };
     const connection = {
@@ -41,6 +48,9 @@ describe('OutboxRepository', () => {
     expect(connection.query.mock.calls[1][0]).toContain('status = ?');
     expect(connection.query.mock.calls[1][1]).toEqual([
       OutboxEventStatus.Processing,
+      'outbox-worker',
+      expect.any(String),
+      expect.any(Date),
       row.id,
     ]);
     expect(connection.commit).toHaveBeenCalled();

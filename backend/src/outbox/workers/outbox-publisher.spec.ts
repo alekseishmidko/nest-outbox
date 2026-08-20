@@ -35,7 +35,14 @@ function createEvent(
     nextRetryAt: null,
     processedAt: null,
     error: null,
+    errorCode: null,
+    errorStack: null,
+    deadLetterReason: null,
     manualRetryReason: null,
+    leaseOwner: null,
+    leaseToken: null,
+    leaseExpiresAt: null,
+    fencingToken: 0,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
   };
@@ -110,9 +117,16 @@ describe('OutboxPublisher', () => {
 
     const result = await publisher.processDueBatch();
 
-    expect(repository.claimDueEvents).toHaveBeenCalledWith(10);
+    expect(repository.claimDueEvents).toHaveBeenCalledWith(
+      10,
+      expect.stringContaining('outbox-'),
+      30000,
+    );
     expect(service.handleEvent).toHaveBeenCalledWith(event);
-    expect(repository.markProcessed).toHaveBeenCalledWith(event.id);
+    expect(repository.markProcessed).toHaveBeenCalledWith(
+      event.id,
+      event.leaseToken,
+    );
     expect(metricsService.observeOutboxProcessed).toHaveBeenCalledWith(
       event.eventType,
       expect.any(Number),
@@ -142,6 +156,9 @@ describe('OutboxPublisher', () => {
       2,
       'media failed',
       new Date('2026-01-01T00:00:02.000Z'),
+      null,
+      expect.stringContaining('Error: media failed'),
+      event.leaseToken,
     );
     expect(metricsService.observeOutboxFailed).toHaveBeenCalledWith(
       event.eventType,
@@ -169,6 +186,10 @@ describe('OutboxPublisher', () => {
       event.id,
       3,
       'final failure',
+      null,
+      expect.stringContaining('Error: final failure'),
+      'final failure',
+      event.leaseToken,
     );
     expect(repository.markFailed).not.toHaveBeenCalled();
   });
@@ -188,7 +209,10 @@ describe('OutboxPublisher', () => {
     const result = await publisher.processDueBatch();
 
     expect(service.handleEvent).toHaveBeenCalledWith(event);
-    expect(repository.markProcessed).toHaveBeenCalledWith(event.id);
+    expect(repository.markProcessed).toHaveBeenCalledWith(
+      event.id,
+      event.leaseToken,
+    );
     expect(result.processed).toBe(1);
   });
 
@@ -256,6 +280,9 @@ describe('OutboxPublisher', () => {
     await tickPromise;
     await destroyPromise;
 
-    expect(repository.markProcessed).toHaveBeenCalledWith(event.id);
+    expect(repository.markProcessed).toHaveBeenCalledWith(
+      event.id,
+      event.leaseToken,
+    );
   });
 });

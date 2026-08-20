@@ -612,12 +612,12 @@ Definition of Done.
   - [x] Добавить rollback-тест при ошибке второго repository.
   - [x] Добавить JSDoc на публичные методы Unit of Work.
 
-- [ ] Надежный Outbox worker.
-  - [ ] Добавить dead-letter причину и stack/error code в `outbox_events`.
-  - [ ] Реализовать административный requeue dead-letter событий.
-  - [ ] Добавить lease/fencing token для нескольких worker-инстансов.
-  - [ ] Добавить integration-тесты конкурирующих worker-ов.
-  - [ ] Добавить alert на backlog, возраст oldest event и dead-letter rate.
+- [x] Надежный Outbox worker.
+  - [x] Добавить dead-letter причину и stack/error code в `outbox_events`.
+  - [x] Реализовать административный requeue dead-letter событий.
+  - [x] Добавить lease/fencing token для нескольких worker-инстансов.
+  - [x] Добавить integration-тесты конкурирующих worker-ов.
+  - [x] Добавить alert на backlog, возраст oldest event и dead-letter rate.
 
 - [ ] Усилить refresh-token security.
   - [ ] Добавить `token_family_id`, `rotated_at`, `revoked_at`.

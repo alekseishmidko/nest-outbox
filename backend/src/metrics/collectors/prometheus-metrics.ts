@@ -78,6 +78,21 @@ export const outboxEventsByStatus = new Gauge({
   registers: [metricsRegistry],
 });
 
+/** Возраст самого старого необработанного Outbox-события. */
+export const outboxOldestEventAgeSeconds = new Gauge({
+  name: 'outbox_oldest_event_age_seconds',
+  help: 'Возраст самого старого pending/failed Outbox-события.',
+  registers: [metricsRegistry],
+});
+
+/** Счетчик переводов Outbox-событий в dead-letter. */
+export const outboxDeadLetterTotal = new Counter({
+  name: 'outbox_dead_letter_total',
+  help: 'Количество переводов Outbox-событий в dead-letter.',
+  labelNames: ['event_type'] as const,
+  registers: [metricsRegistry],
+});
+
 /**
  * Гистограмма длительности DB-запросов.
  */

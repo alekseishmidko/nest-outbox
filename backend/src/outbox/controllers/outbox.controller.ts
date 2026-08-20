@@ -45,4 +45,14 @@ export class OutboxController {
   ) {
     return this.outboxService.retry(id, dto);
   }
+
+  @Post(':id/requeue')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Вернуть dead-letter Outbox-событие в обработку' })
+  requeueDeadLetter(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RetryOutboxEventDto,
+  ) {
+    return this.outboxService.requeueDeadLetter(id, dto);
+  }
 }

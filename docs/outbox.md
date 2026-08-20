@@ -21,7 +21,13 @@ commit существуют обе записи, после rollback — ни о
 | `next_retry_at` | Когда failed-событие снова становится due |
 | `processed_at` | Время успешного завершения |
 | `error` | Последняя ошибка, обрезанная worker до 4000 символов |
+| `error_code` | Машинный код ошибки, например `ER_LOCK_DEADLOCK` |
+| `error_stack` | Stack trace последней ошибки |
+| `dead_letter_reason` | Причина перевода в dead-letter или ручного requeue |
 | `manual_retry_reason` | Audit-причина ручного retry |
+| `lease_owner`, `lease_token` | Владелец и fencing lease текущего worker |
+| `lease_expires_at` | Время окончания lease |
+| `fencing_token` | Монотонный номер claim, защищающий от устаревшего worker |
 | `created_at` | Время создания события |
 
 Основной polling-индекс — `(status, next_retry_at)`, дополнительные индексы
@@ -53,13 +59,14 @@ commit существуют обе записи, после rollback — ни о
 Один tick выполняет следующие шаги:
 
 1. Не запускается, если предыдущий tick еще работает или начался shutdown.
-2. В короткой транзакции выбирает due `pending`/`failed` события.
+2. В короткой транзакции выбирает due `pending`/`failed` события и просроченные
+   `processing` lease.
 3. Блокирует строки через `FOR UPDATE SKIP LOCKED`, меняет их на `processing` и
    делает commit.
 4. Последовательно передает события в `OutboxService` вне claim-транзакции.
 5. Резервирует idempotency key, выполняет handler и фиксирует `processed` либо
    планирует retry/dead letter.
-6. Обновляет Prometheus counters, duration и gauge статусов.
+6. Обновляет Prometheus counters, duration, backlog и oldest-event gauges.
 
 Настройки:
 
@@ -72,6 +79,7 @@ commit существуют обе записи, после rollback — ни о
 | `OUTBOX_RETRY_MAX_DELAY_MS` | `60000` | Максимальная задержка retry |
 | `OUTBOX_RETRY_JITTER_MS` | `0` | Случайный jitter для retry |
 | `OUTBOX_SHUTDOWN_TIMEOUT_MS` | `10000` | Сколько ждать текущий tick при shutdown |
+| `OUTBOX_LEASE_DURATION_MS` | `30000` | Время lease перед возможным reclaim другим worker |
 
 Docker Compose задает более частый polling `1000` мс и jitter `250` мс. Если
 переменная не передана приложению вообще, используются defaults из таблицы.
@@ -96,6 +104,9 @@ FOR UPDATE SKIP LOCKED;
 - после claim выбранные события переводятся в `processing`.
 
 Так несколько backend-инстансов могут работать параллельно и не обрабатывать одно событие дважды.
+У каждого claim есть `lease_token` и монотонный `fencing_token`. Финальные
+`processed/failed/dead_letter` updates принимаются только от владельца актуального
+lease; зависший worker не может перезаписать результат нового claim.
 
 ## Retry
 
@@ -138,6 +149,23 @@ Body:
 - `attempts` в `0`;
 - `next_retry_at`, `processed_at`, `error` в `NULL`.
 - `manual_retry_reason` получает переданную причину.
+
+Для dead-letter используется отдельный административный endpoint:
+
+```http
+POST /outbox/events/:id/requeue
+```
+
+Он работает только для записи со статусом `dead_letter`, очищает retry state и
+возвращает событие в `pending`. Оба endpoint доступны только роли `admin`.
+
+## Alerting
+
+Prometheus rules отслеживают:
+
+- `outbox_events_by_status{status="pending|failed"}` — размер backlog;
+- `outbox_oldest_event_age_seconds` — возраст самого старого необработанного события;
+- `rate(outbox_dead_letter_total[5m])` — появление новых dead-letter событий.
 
 ## Idempotency обработчиков
 

@@ -177,6 +177,42 @@ describeIntegration('Repositories integration', () => {
     expect(secondClaim).toHaveLength(0);
   });
 
+  it('распределяет события между конкурирующими worker-инстансами', async () => {
+    const user = await usersRepository.create({
+      email: 'worker-claim-user@example.com',
+      name: 'Worker Claim User',
+      avatarSeed: 'worker-claim-seed',
+    });
+    const map = await mapsRepository.create({
+      title: 'Worker Claim Map',
+      latitude: 40,
+      longitude: -73,
+      ownerUserId: user.id,
+    });
+
+    await ordersRepository.createWithOutbox({
+      userId: user.id,
+      mapId: map.id,
+      totalAmount: 10,
+    });
+    await ordersRepository.createWithOutbox({
+      userId: user.id,
+      mapId: map.id,
+      totalAmount: 20,
+    });
+
+    const [workerA, workerB] = await Promise.all([
+      outboxRepository.claimDueEvents(1, 'worker-a', 30_000),
+      outboxRepository.claimDueEvents(1, 'worker-b', 30_000),
+    ]);
+
+    expect(workerA).toHaveLength(1);
+    expect(workerB).toHaveLength(1);
+    expect(workerA[0]?.id).not.toBe(workerB[0]?.id);
+    expect(workerA[0]?.leaseToken).toBeTruthy();
+    expect(workerB[0]?.fencingToken).toBe(1);
+  });
+
   it('повторяет транзакцию создания заказа после реального MySQL errno 1213', async () => {
     const { userId, mapId } = await createOrderDependencies('deadlock-retry');
 

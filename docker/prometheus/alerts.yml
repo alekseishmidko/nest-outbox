@@ -57,3 +57,30 @@ groups:
         annotations:
           summary: "Есть dead-letter Outbox-события"
           description: "В Outbox есть события в статусе dead_letter."
+
+      - alert: OutboxBacklogGrowing
+        expr: sum(outbox_events_by_status{status=~"pending|failed"}) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Растет Outbox backlog"
+          description: "В очереди Outbox больше 100 необработанных событий."
+
+      - alert: OutboxOldestEventTooOld
+        expr: outbox_oldest_event_age_seconds > 300
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Старое необработанное Outbox-событие"
+          description: "Самое старое pending/failed событие обрабатывается дольше 5 минут."
+
+      - alert: OutboxDeadLetterRate
+        expr: sum(rate(outbox_dead_letter_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outbox переводит события в dead-letter"
+          description: "За последние 5 минут появились новые dead-letter события."
