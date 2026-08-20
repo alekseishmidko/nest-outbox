@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
@@ -30,7 +31,11 @@ export class OutboxRepository {
    * `FOR UPDATE SKIP LOCKED` блокирует только выбранные строки и позволяет
    * нескольким инстансам приложения параллельно забирать разные события.
    */
-  async claimDueEvents(limit: number): Promise<OutboxEventRecord[]> {
+  async claimDueEvents(
+    limit: number,
+    leaseOwner = 'outbox-worker',
+    leaseDurationMs = 30_000,
+  ): Promise<OutboxEventRecord[]> {
     const normalizedLimit = Number(limit);
     const connection = await this.pool.getConnection();
 
@@ -47,16 +52,20 @@ export class OutboxRepository {
         return [];
       }
 
-      await this.markRowsAsProcessing(
+      const leaseToken = await this.markRowsAsProcessing(
         connection,
         rows.map((row) => row.id),
+        leaseOwner,
+        leaseDurationMs,
       );
       await connection.commit();
-
       return rows.map((row) => ({
         ...this.toRecord(row),
         status: OutboxEventStatus.Processing,
-        error: null,
+        leaseOwner,
+        leaseToken,
+        leaseExpiresAt: new Date(Date.now() + leaseDurationMs),
+        fencingToken: Number(row.fencing_token) + 1,
       }));
     } catch (error) {
       await connection.rollback();
@@ -90,7 +99,14 @@ export class OutboxRepository {
             next_retry_at,
             processed_at,
             error,
+            error_code,
+            error_stack,
+            dead_letter_reason,
             manual_retry_reason,
+            lease_owner,
+            lease_token,
+            lease_expires_at,
+            fencing_token,
             created_at
           FROM outbox_events
           WHERE status = ?
@@ -116,7 +132,14 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          error_code,
+          error_stack,
+          dead_letter_reason,
           manual_retry_reason,
+          lease_owner,
+          lease_token,
+          lease_expires_at,
+          fencing_token,
           created_at
         FROM outbox_events
         ORDER BY created_at DESC
@@ -145,7 +168,14 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          error_code,
+          error_stack,
+          dead_letter_reason,
           manual_retry_reason,
+          lease_owner,
+          lease_token,
+          lease_expires_at,
+          fencing_token,
           created_at
         FROM outbox_events
         WHERE id = ?
@@ -177,6 +207,18 @@ export class OutboxRepository {
     }));
   }
 
+  /** Возвращает возраст самого старого необработанного события в секундах. */
+  async oldestPendingAgeSeconds(): Promise<number> {
+    const [rows] = await this.pool.query<
+      Array<RowDataPacket & { age_seconds: number | null }>
+    >(
+      `SELECT TIMESTAMPDIFF(MICROSECOND, MIN(created_at), CURRENT_TIMESTAMP(3)) / 1000000 AS age_seconds
+       FROM outbox_events WHERE status IN (?, ?)`,
+      [OutboxEventStatus.Pending, OutboxEventStatus.Failed],
+    );
+    return Number(rows[0]?.age_seconds ?? 0);
+  }
+
   /**
    * Сбрасывает событие в ручную повторную обработку.
    *
@@ -193,7 +235,13 @@ export class OutboxRepository {
           next_retry_at = NULL,
           processed_at = NULL,
           error = NULL,
-          manual_retry_reason = ?
+          error_code = NULL,
+          error_stack = NULL,
+          dead_letter_reason = NULL,
+          manual_retry_reason = ?,
+          lease_owner = NULL,
+          lease_token = NULL,
+          lease_expires_at = NULL
         WHERE id = ?
       `,
       [reason, id],
@@ -206,10 +254,33 @@ export class OutboxRepository {
     return this.findById(id);
   }
 
+  /** Повторно ставит только dead-letter событие в pending. */
+  async requeueDeadLetter(
+    id: number,
+    reason: string,
+  ): Promise<OutboxEventRecord | null> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      `UPDATE outbox_events
+       SET status = ?, attempts = 0, next_retry_at = NULL, processed_at = NULL,
+           error = NULL, error_code = NULL, error_stack = NULL,
+           dead_letter_reason = ?, manual_retry_reason = ?, lease_owner = NULL,
+           lease_token = NULL, lease_expires_at = NULL
+       WHERE id = ? AND status = ?`,
+      [
+        OutboxEventStatus.Pending,
+        reason,
+        reason,
+        id,
+        OutboxEventStatus.DeadLetter,
+      ],
+    );
+    return result.affectedRows === 0 ? null : this.findById(id);
+  }
+
   /**
    * Фиксирует успешную обработку события.
    */
-  async markProcessed(id: number): Promise<void> {
+  async markProcessed(id: number, leaseToken?: string | null): Promise<void> {
     await this.pool.execute(
       `
         UPDATE outbox_events
@@ -218,10 +289,15 @@ export class OutboxRepository {
           processed_at = CURRENT_TIMESTAMP(3),
           next_retry_at = NULL,
           error = NULL,
-          manual_retry_reason = NULL
-        WHERE id = ?
+          error_code = NULL,
+          error_stack = NULL,
+          manual_retry_reason = NULL,
+          lease_owner = NULL,
+          lease_token = NULL,
+          lease_expires_at = NULL
+        WHERE id = ? AND (? IS NULL OR lease_token = ?)
       `,
-      [OutboxEventStatus.Processed, id],
+      [OutboxEventStatus.Processed, id, leaseToken ?? null, leaseToken ?? null],
     );
   }
 
@@ -233,6 +309,9 @@ export class OutboxRepository {
     attempts: number,
     error: string,
     nextRetryAt: Date | null,
+    errorCode: string | null = null,
+    errorStack: string | null = null,
+    leaseToken?: string | null,
   ): Promise<void> {
     await this.pool.execute(
       `
@@ -242,10 +321,21 @@ export class OutboxRepository {
           attempts = ?,
           next_retry_at = ?,
           processed_at = NULL,
-          error = ?
-        WHERE id = ?
+          error = ?, error_code = ?, error_stack = ?, lease_owner = NULL,
+          lease_token = NULL, lease_expires_at = NULL
+        WHERE id = ? AND (? IS NULL OR lease_token = ?)
       `,
-      [OutboxEventStatus.Failed, attempts, nextRetryAt, error, id],
+      [
+        OutboxEventStatus.Failed,
+        attempts,
+        nextRetryAt,
+        error,
+        errorCode,
+        errorStack,
+        id,
+        leaseToken ?? null,
+        leaseToken ?? null,
+      ],
     );
   }
 
@@ -256,6 +346,10 @@ export class OutboxRepository {
     id: number,
     attempts: number,
     error: string,
+    errorCode: string | null = null,
+    errorStack: string | null = null,
+    deadLetterReason = error,
+    leaseToken?: string | null,
   ): Promise<void> {
     await this.pool.execute(
       `
@@ -265,10 +359,21 @@ export class OutboxRepository {
           attempts = ?,
           next_retry_at = NULL,
           processed_at = NULL,
-          error = ?
-        WHERE id = ?
+          error = ?, error_code = ?, error_stack = ?, dead_letter_reason = ?,
+          lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL
+        WHERE id = ? AND (? IS NULL OR lease_token = ?)
       `,
-      [OutboxEventStatus.DeadLetter, attempts, error, id],
+      [
+        OutboxEventStatus.DeadLetter,
+        attempts,
+        error,
+        errorCode,
+        errorStack,
+        deadLetterReason,
+        id,
+        leaseToken ?? null,
+        leaseToken ?? null,
+      ],
     );
   }
 
@@ -365,7 +470,14 @@ export class OutboxRepository {
           next_retry_at,
           processed_at,
           error,
+          error_code,
+          error_stack,
+          dead_letter_reason,
           manual_retry_reason,
+          lease_owner,
+          lease_token,
+          lease_expires_at,
+          fencing_token,
           created_at
         FROM outbox_events
         WHERE
@@ -378,11 +490,21 @@ export class OutboxRepository {
             AND next_retry_at IS NOT NULL
             AND next_retry_at <= CURRENT_TIMESTAMP(3)
           )
+          OR (
+            status = ?
+            AND lease_expires_at IS NOT NULL
+            AND lease_expires_at <= CURRENT_TIMESTAMP(3)
+          )
         ORDER BY created_at ASC
         LIMIT ?
         FOR UPDATE SKIP LOCKED
       `,
-      [OutboxEventStatus.Pending, OutboxEventStatus.Failed, limit],
+      [
+        OutboxEventStatus.Pending,
+        OutboxEventStatus.Failed,
+        OutboxEventStatus.Processing,
+        limit,
+      ],
     );
 
     return rows;
@@ -394,19 +516,33 @@ export class OutboxRepository {
   private async markRowsAsProcessing(
     connection: PoolConnection,
     ids: number[],
-  ): Promise<void> {
+    leaseOwner: string,
+    leaseDurationMs: number,
+  ): Promise<string> {
     const placeholders = ids.map(() => '?').join(', ');
+    const leaseToken = randomUUID();
 
     await connection.query(
       `
         UPDATE outbox_events
         SET
           status = ?,
-          error = NULL
+          error = NULL,
+          lease_owner = ?,
+          lease_token = ?,
+          lease_expires_at = ?,
+          fencing_token = fencing_token + 1
         WHERE id IN (${placeholders})
       `,
-      [OutboxEventStatus.Processing, ...ids],
+      [
+        OutboxEventStatus.Processing,
+        leaseOwner,
+        leaseToken,
+        new Date(Date.now() + leaseDurationMs),
+        ...ids,
+      ],
     );
+    return leaseToken;
   }
 
   /**
@@ -425,7 +561,14 @@ export class OutboxRepository {
       nextRetryAt: row.next_retry_at,
       processedAt: row.processed_at,
       error: row.error,
+      errorCode: row.error_code,
+      errorStack: row.error_stack,
+      deadLetterReason: row.dead_letter_reason,
       manualRetryReason: row.manual_retry_reason,
+      leaseOwner: row.lease_owner,
+      leaseToken: row.lease_token,
+      leaseExpiresAt: row.lease_expires_at,
+      fencingToken: Number(row.fencing_token),
       createdAt: row.created_at,
     };
   }

@@ -13,6 +13,7 @@ const outboxPublisherEnvSchema = z.object({
     .int()
     .positive()
     .default(10_000),
+  OUTBOX_LEASE_DURATION_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 /**
@@ -29,5 +30,6 @@ export function parseOutboxPublisherConfig(): OutboxPublisherConfig {
     retryMaxDelayMs: env.OUTBOX_RETRY_MAX_DELAY_MS,
     retryJitterMs: env.OUTBOX_RETRY_JITTER_MS,
     shutdownTimeoutMs: env.OUTBOX_SHUTDOWN_TIMEOUT_MS,
+    leaseDurationMs: env.OUTBOX_LEASE_DURATION_MS,
   };
 }

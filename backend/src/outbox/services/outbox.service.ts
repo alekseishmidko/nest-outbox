@@ -43,6 +43,20 @@ export class OutboxService {
     return event;
   }
 
+  /** Административно возвращает dead-letter событие в pending. */
+  async requeueDeadLetter(
+    id: number,
+    dto: RetryOutboxEventDto,
+  ): Promise<OutboxEventRecord> {
+    const event = await this.outboxRepository.requeueDeadLetter(id, dto.reason);
+    if (!event) {
+      throw new NotFoundException(
+        `Dead-letter Outbox-событие ${id} не найдено`,
+      );
+    }
+    return event;
+  }
+
   /**
    * Обрабатывает событие через зарегистрированный handler.
    *

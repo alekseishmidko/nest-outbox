@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { runWithObservabilityContext } from '../../common/observability/observability-context';
 import { MetricsService } from '../../metrics/services/metrics.service';
 import { OutboxRepository } from '../repositories/outbox.repository';
@@ -26,6 +27,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
   private isShuttingDown = false;
+  private readonly workerId = `outbox-${randomUUID()}`;
 
   constructor(
     private readonly outboxRepository: OutboxRepository,
@@ -94,6 +96,8 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     try {
       const events = await this.outboxRepository.claimDueEvents(
         this.config.batchSize,
+        this.workerId,
+        this.config.leaseDurationMs,
       );
       const result: OutboxPublishResult = {
         claimed: events.length,
@@ -163,7 +167,7 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
         }),
       );
       await this.outboxService.handleEvent(event);
-      await this.outboxRepository.markProcessed(event.id);
+      await this.outboxRepository.markProcessed(event.id, event.leaseToken);
       this.metricsService.observeOutboxProcessed(
         event.eventType,
         this.getDurationSeconds(startedAt),
@@ -183,19 +187,32 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const attempts = event.attempts + 1;
       const message = this.toErrorMessage(error);
+      const details = this.getErrorDetails(error);
       const shouldDeadLetter = attempts >= this.config.maxAttempts;
       const nextRetryAt = shouldDeadLetter
         ? null
         : new Date(Date.now() + this.getRetryDelayMs(attempts));
 
       if (shouldDeadLetter) {
-        await this.outboxRepository.markDeadLetter(event.id, attempts, message);
+        await this.outboxRepository.markDeadLetter(
+          event.id,
+          attempts,
+          message,
+          details.code,
+          details.stack,
+          message,
+          event.leaseToken,
+        );
+        this.metricsService.observeOutboxDeadLetter?.(event.eventType);
       } else {
         await this.outboxRepository.markFailed(
           event.id,
           attempts,
           message,
           nextRetryAt,
+          details.code,
+          details.stack,
+          event.leaseToken,
         );
       }
       this.metricsService.observeOutboxFailed(
@@ -245,6 +262,11 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     for (const item of statusCounts) {
       this.metricsService.setOutboxStatusCount(item.status, item.count);
     }
+    if (this.outboxRepository.oldestPendingAgeSeconds) {
+      this.metricsService.setOutboxOldestEventAge(
+        await this.outboxRepository.oldestPendingAgeSeconds(),
+      );
+    }
   }
 
   private toErrorMessage(error: unknown): string {
@@ -253,6 +275,17 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     }
 
     return String(error).slice(0, 4000);
+  }
+
+  private getErrorDetails(error: unknown): {
+    code: string | null;
+    stack: string | null;
+  } {
+    const candidate = error as { code?: unknown; stack?: unknown };
+    return {
+      code: typeof candidate?.code === 'string' ? candidate.code : null,
+      stack: typeof candidate?.stack === 'string' ? candidate.stack : null,
+    };
   }
 
   private createOutboxCorrelationId(event: OutboxEventRecord): string {

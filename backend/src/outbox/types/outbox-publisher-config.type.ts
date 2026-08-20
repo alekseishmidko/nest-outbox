@@ -9,4 +9,5 @@ export type OutboxPublisherConfig = {
   retryMaxDelayMs: number;
   retryJitterMs: number;
   shutdownTimeoutMs: number;
+  leaseDurationMs: number;
 };

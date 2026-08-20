@@ -27,7 +27,14 @@ describe('OutboxService', () => {
     nextRetryAt: null,
     processedAt: null,
     error: null,
+    errorCode: null,
+    errorStack: null,
+    deadLetterReason: null,
     manualRetryReason: null,
+    leaseOwner: null,
+    leaseToken: null,
+    leaseExpiresAt: null,
+    fencingToken: 0,
     createdAt: new Date(),
   };
 
