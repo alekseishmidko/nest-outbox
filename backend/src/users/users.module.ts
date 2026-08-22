@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersController } from './controllers/users.controller';
 import { UsersRepository } from './repositories/users.repository';
 import { UsersService } from './services/users.service';
+import { UserActivityQueryHandler } from './queries/user-activity-query.handler';
 
 /**
  * Модуль пользователей.
@@ -13,7 +14,7 @@ import { UsersService } from './services/users.service';
 @Module({
   imports: [DatabaseModule, AuthModule],
   controllers: [UsersController],
-  providers: [UsersRepository, UsersService],
+  providers: [UsersRepository, UsersService, UserActivityQueryHandler],
   exports: [UsersService, UsersRepository],
 })
 export class UsersModule {}
