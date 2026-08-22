@@ -77,6 +77,75 @@ describeE2e('API e2e', () => {
     authorization = `Bearer ${loginResponse.body.accessToken as string}`;
   });
 
+  it('ротирует refresh token, отзывает family при reuse и поддерживает logout', async () => {
+    const server = app.getHttpServer();
+    const registered = await request(server)
+      .post('/auth/register')
+      .send({
+        email: 'refresh-security@example.com',
+        name: 'Refresh Security',
+        password: 'refresh-password',
+      })
+      .expect(201);
+    const firstRefreshToken = registered.body.refreshToken as string;
+
+    const rotated = await request(server)
+      .post('/auth/refresh')
+      .send({ refreshToken: firstRefreshToken })
+      .expect(201);
+    const nextRefreshToken = rotated.body.refreshToken as string;
+
+    await request(server)
+      .post('/auth/refresh')
+      .send({ refreshToken: firstRefreshToken })
+      .expect(401);
+    await request(server)
+      .post('/auth/refresh')
+      .send({ refreshToken: nextRefreshToken })
+      .expect(401);
+
+    const loggedIn = await request(server)
+      .post('/auth/login')
+      .send({
+        email: 'refresh-security@example.com',
+        password: 'refresh-password',
+      })
+      .expect(201);
+    await request(server)
+      .post('/auth/logout')
+      .set('Authorization', `Bearer ${loggedIn.body.accessToken as string}`)
+      .expect(201);
+    await request(server)
+      .post('/auth/refresh')
+      .send({ refreshToken: loggedIn.body.refreshToken })
+      .expect(401);
+  });
+
+  it('отклоняет истекший refresh token', async () => {
+    const server = app.getHttpServer();
+    const registered = await request(server)
+      .post('/auth/register')
+      .send({
+        email: 'expired-refresh@example.com',
+        name: 'Expired Refresh',
+        password: 'refresh-password',
+      })
+      .expect(201);
+    await kit.pool.execute(
+      `UPDATE refresh_tokens rt
+       JOIN users u ON u.id = rt.user_id
+       SET rt.expires_at = CURRENT_TIMESTAMP(3) - INTERVAL 1 SECOND
+       WHERE u.email = ?`,
+      ['expired-refresh@example.com'],
+    );
+
+    await request(server)
+      .post('/auth/refresh')
+      .send({ refreshToken: registered.body.refreshToken })
+      .expect(401)
+      .expect((response) => expect(response.body.message).toContain('истек'));
+  });
+
   it('создает пользователя, карту, заказ, генерирует медиа и обрабатывает Outbox', async () => {
     const server = app.getHttpServer();
     const userResponse = await request(server)

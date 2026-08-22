@@ -67,6 +67,25 @@ Dry-run показывает, какие миграции будут приме�
 - `uq_users_email`: уникальный индекс по `email`.
 - `idx_users_role`: выборка пользователей по роли.
 
+## `refresh_tokens`
+
+История refresh-токенов нужна для rotation и обнаружения повторного использования
+старого токена. В таблице хранится только SHA-256 hash.
+
+| Поле | Тип | Назначение |
+| --- | --- | --- |
+| `user_id` | `BIGINT UNSIGNED` | Владелец токена |
+| `token_hash` | `CHAR(64)` | Уникальный hash JWT |
+| `token_family_id` | `CHAR(36)` | Семейство одной refresh-сессии |
+| `expires_at` | `TIMESTAMP(3)` | Срок действия |
+| `rotated_at` | `TIMESTAMP(3)` nullable | Время успешной rotation |
+| `revoked_at` | `TIMESTAMP(3)` nullable | Время revoke токена/family |
+| `created_at` | `TIMESTAMP(3)` | Время выдачи |
+
+`POST /auth/refresh` атомарно помечает текущую запись как rotated и добавляет
+новую запись в ту же family. Если rotated/revoked запись предъявлена повторно,
+все записи family получают `revoked_at`.
+
 ## `maps`
 
 Хранит сущности, для которых можно генерировать QR-code.

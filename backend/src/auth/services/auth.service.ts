@@ -63,24 +63,48 @@ export class AuthService {
       this.refreshSecret,
       'refresh',
     );
-    const row = await this.authRepository.findById(payload.sub);
     const tokenHash = this.hashToken(dto.refreshToken);
-    if (
-      !row ||
-      row.refresh_token_hash !== tokenHash ||
-      !row.refresh_token_expires_at ||
-      row.refresh_token_expires_at.getTime() <= Date.now()
-    ) {
+    const current = await this.authRepository.findRefreshToken(tokenHash);
+    if (!current || current.userId !== payload.sub) {
       throw new UnauthorizedException(
         'Refresh token недействителен или отозван',
       );
     }
-    await this.authRepository.clearRefreshToken(row.id);
-    return this.issueTokens({ id: row.id, email: row.email, role: row.role });
+
+    if (payload.familyId && payload.familyId !== current.tokenFamilyId) {
+      throw new UnauthorizedException(
+        'Refresh token недействителен или отозван',
+      );
+    }
+
+    const next = this.createTokens(
+      { id: current.userId, email: current.email, role: current.role },
+      current.tokenFamilyId,
+    );
+    const result = await this.authRepository.rotateRefreshToken(
+      tokenHash,
+      next.refreshTokenHash,
+      next.refreshExpiresAt,
+    );
+
+    if (result.status === 'reuse') {
+      throw new UnauthorizedException(
+        'Обнаружено повторное использование refresh token; token family отозвана',
+      );
+    }
+    if (result.status !== 'rotated') {
+      throw new UnauthorizedException(
+        result.status === 'expired'
+          ? 'Refresh token истек'
+          : 'Refresh token недействителен или отозван',
+      );
+    }
+
+    return next.tokens;
   }
 
   async logout(user: AuthUser): Promise<void> {
-    await this.authRepository.clearRefreshToken(user.id);
+    await this.authRepository.revokeAllRefreshTokens(user.id);
   }
 
   verifyAccessToken(token: string): AuthUser {
@@ -89,6 +113,25 @@ export class AuthService {
   }
 
   private async issueTokens(user: AuthUser): Promise<AuthTokens> {
+    const familyId = randomUUID();
+    const issued = this.createTokens(user, familyId);
+    await this.authRepository.saveRefreshToken(
+      user.id,
+      issued.refreshTokenHash,
+      issued.refreshExpiresAt,
+      familyId,
+    );
+    return issued.tokens;
+  }
+
+  private createTokens(
+    user: AuthUser,
+    familyId: string,
+  ): {
+    tokens: AuthTokens;
+    refreshTokenHash: string;
+    refreshExpiresAt: Date;
+  } {
     const basePayload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = jwt.sign(
       { ...basePayload, type: 'access' },
@@ -96,20 +139,22 @@ export class AuthService {
       { expiresIn: ACCESS_EXPIRES_IN_SECONDS },
     );
     const refreshToken = jwt.sign(
-      { ...basePayload, type: 'refresh', jti: randomUUID() },
+      { ...basePayload, type: 'refresh', familyId, jti: randomUUID() },
       this.refreshSecret,
       { expiresIn: REFRESH_EXPIRES_IN_SECONDS },
     );
-    await this.authRepository.saveRefreshToken(
-      user.id,
-      this.hashToken(refreshToken),
-      new Date(Date.now() + REFRESH_EXPIRES_IN_SECONDS * 1000),
+    const refreshExpiresAt = new Date(
+      Date.now() + REFRESH_EXPIRES_IN_SECONDS * 1000,
     );
     return {
-      accessToken,
-      refreshToken,
-      tokenType: 'Bearer',
-      expiresInSeconds: ACCESS_EXPIRES_IN_SECONDS,
+      tokens: {
+        accessToken,
+        refreshToken,
+        tokenType: 'Bearer',
+        expiresInSeconds: ACCESS_EXPIRES_IN_SECONDS,
+      },
+      refreshTokenHash: this.hashToken(refreshToken),
+      refreshExpiresAt,
     };
   }
 

@@ -15,6 +15,7 @@ const TABLES = [
   'idempotency_keys',
   'media_assets',
   'outbox_events',
+  'refresh_tokens',
   'orders',
   'maps',
   'users',
