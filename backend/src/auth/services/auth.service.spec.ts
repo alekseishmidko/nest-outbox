@@ -1,75 +1,109 @@
 import * as argon2 from 'argon2';
+import * as jwt from 'jsonwebtoken';
 import { AuthRepository } from '../repositories/auth.repository';
 import { AuthService } from './auth.service';
 
-describe('AuthService', () => {
-  it('хеширует пароль и выдает access/refresh tokens', async () => {
+const user = { id: 1, email: 'user@example.com', role: 'user' as const };
+
+describe('AuthService refresh-token security', () => {
+  it('issues a refresh token with a token family', async () => {
     const repository = {
       createUser: jest.fn().mockImplementation(async ({ passwordHash }) => {
         expect(passwordHash).not.toBe('password-password');
         expect(await argon2.verify(passwordHash, 'password-password')).toBe(
           true,
         );
-        return { id: 1, email: 'user@example.com', role: 'user' };
+        return user;
       }),
       saveRefreshToken: jest.fn().mockResolvedValue(undefined),
     };
     const service = new AuthService(repository as unknown as AuthRepository);
 
     const tokens = await service.register({
-      email: 'user@example.com',
+      email: user.email,
       name: 'User',
       password: 'password-password',
     });
 
-    expect(tokens.accessToken).toEqual(expect.any(String));
     expect(tokens.refreshToken).toEqual(expect.any(String));
-    expect(tokens.tokenType).toBe('Bearer');
     expect(repository.saveRefreshToken).toHaveBeenCalledWith(
       1,
       expect.stringMatching(/^[a-f0-9]{64}$/),
       expect.any(Date),
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
     );
   });
 
-  it('ротирует refresh token и отклоняет повтор старого token', async () => {
-    const row = {
-      id: 1,
-      email: 'user@example.com',
-      role: 'user' as const,
-      password_hash: null as string | null,
-      refresh_token_hash: null as string | null,
-      refresh_token_expires_at: null as Date | null,
-    };
+  it('rotates a token and detects reuse of the old token', async () => {
     const repository = {
-      createUser: jest.fn().mockImplementation(async ({ passwordHash }) => {
-        row.password_hash = passwordHash;
-        return { id: row.id, email: row.email, role: row.role };
+      findRefreshToken: jest.fn().mockResolvedValue({
+        id: 10,
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        tokenFamilyId: 'family-1',
+        expiresAt: new Date(Date.now() + 60_000),
+        rotatedAt: null,
+        revokedAt: null,
       }),
-      findByEmail: jest.fn().mockResolvedValue(row),
-      findById: jest.fn().mockResolvedValue(row),
-      saveRefreshToken: jest
+      rotateRefreshToken: jest
         .fn()
-        .mockImplementation(async (_id, hash, expires) => {
-          row.refresh_token_hash = hash;
-          row.refresh_token_expires_at = expires;
-        }),
-      clearRefreshToken: jest.fn().mockImplementation(async () => {
-        row.refresh_token_hash = null;
-        row.refresh_token_expires_at = null;
-      }),
+        .mockResolvedValueOnce({ status: 'rotated', user })
+        .mockResolvedValueOnce({ status: 'reuse' }),
     };
     const service = new AuthService(repository as unknown as AuthRepository);
-    const first = await service.register({
-      email: row.email,
-      name: 'User',
-      password: 'password-password',
-    });
+    const refreshToken = issueRefreshToken('family-1');
 
-    const next = await service.refresh({ refreshToken: first.refreshToken });
-    expect(next.refreshToken).not.toBe(first.refreshToken);
-    await expect(
-      service.refresh({ refreshToken: first.refreshToken }),
-    ).rejects.toThrow('недействителен');
+    const next = await service.refresh({ refreshToken });
+    expect(next.refreshToken).not.toBe(refreshToken);
+    await expect(service.refresh({ refreshToken })).rejects.toThrow(
+      'token family отозвана',
+    );
+    expect(repository.rotateRefreshToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an expired token', async () => {
+    const repository = {
+      findRefreshToken: jest.fn().mockResolvedValue({
+        id: 10,
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        tokenFamilyId: 'family-1',
+        expiresAt: new Date(Date.now() - 1_000),
+        rotatedAt: null,
+        revokedAt: null,
+      }),
+      rotateRefreshToken: jest.fn().mockResolvedValue({ status: 'expired' }),
+    };
+    const service = new AuthService(repository as unknown as AuthRepository);
+    const refreshToken = issueRefreshToken('family-1');
+
+    await expect(service.refresh({ refreshToken })).rejects.toThrow('истек');
+  });
+
+  it('revokes every refresh token on logout', async () => {
+    const repository = {
+      revokeAllRefreshTokens: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new AuthService(repository as unknown as AuthRepository);
+
+    await service.logout(user);
+
+    expect(repository.revokeAllRefreshTokens).toHaveBeenCalledWith(user.id);
   });
 });
+
+function issueRefreshToken(familyId: string): string {
+  return jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      type: 'refresh',
+      familyId,
+    },
+    'dev-refresh-secret-change-me',
+    { expiresIn: 60 * 60 },
+  );
+}

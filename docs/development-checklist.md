@@ -619,11 +619,13 @@ Definition of Done.
   - [x] Добавить integration-тесты конкурирующих worker-ов.
   - [x] Добавить alert на backlog, возраст oldest event и dead-letter rate.
 
-- [ ] Усилить refresh-token security.
-  - [ ] Добавить `token_family_id`, `rotated_at`, `revoked_at`.
-  - [ ] Реализовать rotation с обнаружением повторного использования старого токена.
-  - [ ] Отзывать всю token family при reuse detection.
-  - [ ] Добавить unit/e2e-тесты refresh, logout, reuse и expiry.
+- [x] Усилить refresh-token security.
+  - [x] Добавить таблицу refresh-токенов с `token_family_id`, `rotated_at`, `revoked_at`.
+  - [x] Реализовать rotation с обнаружением повторного использования старого токена.
+  - [x] Отзывать всю token family при reuse detection.
+  - [x] Добавить unit/e2e-тесты refresh, logout, reuse и expiry.
+  - [x] Обновить `docs/security.md` и `docs/database.md`.
+  - [x] Документировать компрометацию refresh-сессии, массовый logout всех family пользователя и ограничения access JWT.
 
 ### P1 — масштабирование бизнес-логики
 

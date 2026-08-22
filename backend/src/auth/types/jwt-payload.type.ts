@@ -5,6 +5,7 @@ export type JwtPayload = {
   email: string;
   role: AuthRole;
   type: 'access' | 'refresh';
+  familyId?: string;
   iat?: number;
   exp?: number;
 };
