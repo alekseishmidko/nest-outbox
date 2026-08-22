@@ -235,6 +235,53 @@ describeE2e('API e2e', () => {
       });
   });
 
+  it('сохраняет контракты CQRS-маршрутов orders overview/status и users activity', async () => {
+    const server = app.getHttpServer();
+    const user = await request(server)
+      .post('/users')
+      .set('Authorization', authorization)
+      .send({ email: 'cqrs-e2e@example.com', name: 'CQRS E2E' })
+      .expect(201);
+    const map = await request(server)
+      .post('/maps')
+      .set('Authorization', authorization)
+      .send({
+        title: 'CQRS map',
+        latitude: 10,
+        longitude: 20,
+        ownerUserId: user.body.id,
+      })
+      .expect(201);
+    const order = await request(server)
+      .post('/orders')
+      .set('Authorization', authorization)
+      .send({ userId: user.body.id, mapId: map.body.id, totalAmount: 15 })
+      .expect(201);
+
+    await request(server)
+      .get('/orders/reports/overview')
+      .set('Authorization', authorization)
+      .query({ limit: 1, offset: 0 })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body[0].orderId).toBe(order.body.id),
+      );
+    const updated = await request(server)
+      .patch(`/orders/${order.body.id}/status`)
+      .set('Authorization', authorization)
+      .send({ status: 'paid', version: order.body.version })
+      .expect(200);
+    expect(updated.body.status).toBe('paid');
+    await request(server)
+      .get(`/users/${user.body.id}/activity`)
+      .set('Authorization', authorization)
+      .query({ pagination: 'offset', limit: 1, offset: 0 })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.pageInfo.pagination).toBe('offset'),
+      );
+  });
+
   it('возвращает 409 одному из конкурентных optimistic updates', async () => {
     const server = app.getHttpServer();
     const user = await request(server)

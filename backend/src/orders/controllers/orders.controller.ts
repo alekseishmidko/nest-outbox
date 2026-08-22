@@ -14,17 +14,27 @@ import { CreateOrderDto } from '../dto/create-order.dto';
 import { ListOrdersQueryDto } from '../dto/list-orders-query.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { UpdateOrderStatusPessimisticDto } from '../dto/update-order-status-pessimistic.dto';
-import { OrdersService } from '../services/orders.service';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { OwnershipGuard } from '../../auth/guards/ownership.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import { CreateOrderHandler } from '../commands/create-order.handler';
+import { UpdateOrderStatusHandler } from '../commands/update-order-status.handler';
+import {
+  ListOrdersQueryHandler,
+  OrderOverviewQueryHandler,
+} from '../queries/orders-query.handlers';
 
 @ApiTags('orders')
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly createOrderHandler: CreateOrderHandler,
+    private readonly updateOrderStatusHandler: UpdateOrderStatusHandler,
+    private readonly listOrdersQueryHandler: ListOrdersQueryHandler,
+    private readonly orderOverviewQueryHandler: OrderOverviewQueryHandler,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, OwnershipGuard)
@@ -41,7 +51,7 @@ export class OrdersController {
     @Body() dto: CreateOrderDto,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.ordersService.create(dto, idempotencyKey);
+    return this.createOrderHandler.execute(dto, idempotencyKey);
   }
 
   @Get()
@@ -49,7 +59,7 @@ export class OrdersController {
   @Roles('admin')
   @ApiOperation({ summary: 'Получить список заказов' })
   findAll(@Query() query: ListOrdersQueryDto) {
-    return this.ordersService.findAll(query);
+    return this.listOrdersQueryHandler.execute(query);
   }
 
   @Get('reports/overview')
@@ -59,7 +69,7 @@ export class OrdersController {
     summary: 'Получить отчет заказов с JOIN между users, maps и orders',
   })
   findOverview(@Query() query: ListOrdersQueryDto) {
-    return this.ordersService.findOverview(query);
+    return this.orderOverviewQueryHandler.execute(query);
   }
 
   @Get('users/:userId')
@@ -69,7 +79,7 @@ export class OrdersController {
     @Param('userId', ParseIntPipe) userId: number,
     @Query() query: ListOrdersQueryDto,
   ) {
-    return this.ordersService.findByUserId(userId, query);
+    return this.listOrdersQueryHandler.byUser(userId, query);
   }
 
   @Get('maps/:mapId')
@@ -79,14 +89,14 @@ export class OrdersController {
     @Param('mapId', ParseIntPipe) mapId: number,
     @Query() query: ListOrdersQueryDto,
   ) {
-    return this.ordersService.findByMapId(mapId, query);
+    return this.listOrdersQueryHandler.byMap(mapId, query);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Получить заказ по id' })
   findById(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.findById(id);
+    return this.listOrdersQueryHandler.byId(id);
   }
 
   @Patch(':id/status')
@@ -96,7 +106,7 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateStatus(id, dto);
+    return this.updateOrderStatusHandler.execute(id, dto);
   }
 
   @Patch(':id/status/pessimistic')
@@ -108,6 +118,6 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusPessimisticDto,
   ) {
-    return this.ordersService.updateStatusPessimistic(id, dto.status);
+    return this.updateOrderStatusHandler.executePessimistic(id, dto.status);
   }
 }

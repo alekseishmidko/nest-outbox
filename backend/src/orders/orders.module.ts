@@ -6,6 +6,12 @@ import { UsersModule } from '../users/users.module';
 import { OrdersController } from './controllers/orders.controller';
 import { OrdersRepository } from './repositories/orders.repository';
 import { OrdersService } from './services/orders.service';
+import { CreateOrderHandler } from './commands/create-order.handler';
+import { UpdateOrderStatusHandler } from './commands/update-order-status.handler';
+import {
+  ListOrdersQueryHandler,
+  OrderOverviewQueryHandler,
+} from './queries/orders-query.handlers';
 
 /**
  * Модуль заказов.
@@ -15,7 +21,14 @@ import { OrdersService } from './services/orders.service';
 @Module({
   imports: [DatabaseModule, MapsModule, UsersModule, AuthModule],
   controllers: [OrdersController],
-  providers: [OrdersRepository, OrdersService],
+  providers: [
+    OrdersRepository,
+    OrdersService,
+    CreateOrderHandler,
+    UpdateOrderStatusHandler,
+    ListOrdersQueryHandler,
+    OrderOverviewQueryHandler,
+  ],
   exports: [OrdersService],
 })
 export class OrdersModule {}

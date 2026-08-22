@@ -20,11 +20,15 @@ import { ListUsersQueryDto } from '../dto/list-users-query.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserActivityQueryDto } from '../dto/user-activity-query.dto';
 import { UsersService } from '../services/users.service';
+import { UserActivityQueryHandler } from '../queries/user-activity-query.handler';
 
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly userActivityQueryHandler: UserActivityQueryHandler,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,7 +56,7 @@ export class UsersController {
     @Param('id', ParseIntPipe) id: number,
     @Query() query: UserActivityQueryDto,
   ) {
-    return this.usersService.findActivity(id, query);
+    return this.userActivityQueryHandler.execute(id, query);
   }
 
   @Get(':id')

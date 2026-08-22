@@ -627,13 +627,13 @@ Definition of Done.
 
 ### P1 — масштабирование бизнес-логики
 
-- [ ] CQRS для `orders` и `users`.
-  - [ ] Выделить command handlers для создания заказа и изменения статуса.
-  - [ ] Выделить query handlers для overview, activity и pagination.
-  - [ ] Оставить controller тонким и перенести orchestration в handlers.
-  - [ ] Сохранить существующие HTTP-контракты.
-  - [ ] Добавить unit-тесты handlers и e2e-регрессию API.
-  - [ ] Создать `docs/cqrs.md` с критериями, когда CQRS не нужен.
+- [X] CQRS для `orders` и `users`.
+  - [X] Выделить command handlers для создания заказа и изменения статуса.
+  - [X] Выделить query handlers для overview, activity и pagination.
+  - [X] Оставить controller тонким и перенести orchestration в handlers.
+  - [X] Сохранить существующие HTTP-контракты.
+  - [X] Добавить unit-тесты handlers и e2e-регрессию API.
+  - [X] Создать `docs/cqrs.md` с критериями, когда CQRS не нужен.
 
 - [ ] Domain events и Process Manager/Saga.
   - [ ] Описать события `OrderCreated`, `OrderStatusChanged`, `MediaGenerated`.
