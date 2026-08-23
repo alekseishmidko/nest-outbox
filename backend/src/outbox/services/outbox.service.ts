@@ -91,7 +91,19 @@ export class OutboxService {
   private async dispatchEvent(event: OutboxEventRecord): Promise<void> {
     if (event.eventType === 'order.created') {
       await this.orderCreatedOutboxHandler.handle(event);
+      return;
     }
+
+    if (
+      event.eventType === 'order.status_changed' ||
+      event.eventType === 'media.generated'
+    ) {
+      // These events are durable domain-event facts. Their consumers can be added
+      // independently; acknowledging them keeps the Outbox transport resumable.
+      return;
+    }
+
+    throw new Error(`No Outbox handler registered for ${event.eventType}`);
   }
 
   /**

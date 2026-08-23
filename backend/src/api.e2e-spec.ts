@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { RowDataPacket } from 'mysql2';
 import * as request from 'supertest';
 
 jest.mock('@dicebear/core', () => ({
@@ -199,6 +200,11 @@ describeE2e('API e2e', () => {
     const eventId = pendingEventsResponse.body[0].id as number;
     const publisher = app.get(OutboxPublisher);
     const publishResult = await publisher.processDueBatch();
+    const [sagaRows] = await kit.pool.execute<
+      Array<RowDataPacket & { status: string; completed_stages: string }>
+    >('SELECT status, completed_stages FROM order_sagas WHERE order_id = ?', [
+      orderResponse.body.id,
+    ]);
 
     await request(server)
       .get(`/outbox/events/${eventId}`)
@@ -219,7 +225,15 @@ describeE2e('API e2e', () => {
       .expect(200);
 
     expect(orderResponse.body.id).toBeGreaterThan(0);
-    expect(publishResult.processed).toBe(1);
+    // order.created + media.generated для avatar и QR.
+    expect(publishResult.processed).toBe(3);
+    expect(sagaRows[0]?.status).toBe('completed');
+    const completedStages = sagaRows[0]?.completed_stages;
+    const parsedCompletedStages =
+      typeof completedStages === 'string'
+        ? JSON.parse(completedStages)
+        : (completedStages ?? []);
+    expect(parsedCompletedStages).toEqual(['avatar', 'qr']);
     expect(offsetActivityResponse.body.items).toHaveLength(1);
     expect(offsetActivityResponse.body.pageInfo.pagination).toBe('offset');
     expect(cursorActivityResponse.body.items).toHaveLength(1);

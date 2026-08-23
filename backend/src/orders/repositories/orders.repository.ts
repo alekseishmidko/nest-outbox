@@ -20,6 +20,11 @@ import { OrderRecord } from '../types/order-record.type';
 import { OrderRow } from '../types/order-row.type';
 import { OptimisticLockConflictError } from '../types/optimistic-lock-conflict.error';
 import { SqlValue } from '../types/sql-value.type';
+import { OrderCreated } from '../../domain/events/order-created.event';
+import { OrderStatusChanged } from '../../domain/events/order-status-changed.event';
+import { toOutboxEnvelope } from '../../outbox/domain-event-mapper';
+import { canTransitionOrderStatus } from '../order-state-machine';
+import { InvalidOrderStatusTransitionError } from '../types/invalid-order-status-transition.error';
 
 /**
  * Repository заказов.
@@ -205,30 +210,14 @@ export class OrdersRepository {
 
     const orderId = orderResult.insertId;
 
-    await connection.execute(
-      `
-        INSERT INTO outbox_events (
-          event_type,
-          aggregate_type,
-          aggregate_id,
-          payload,
-          status,
-          attempts
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        'order.created',
-        'order',
+    await this.appendDomainEvent(
+      connection,
+      new OrderCreated(
         orderId,
-        JSON.stringify({
-          orderId,
-          userId: dto.userId,
-          mapId: dto.mapId,
-          totalAmount: dto.totalAmount,
-        }),
-        'pending',
-        0,
-      ],
+        dto.userId,
+        dto.mapId,
+        Number(dto.totalAmount),
+      ).toDomainEvent(),
     );
 
     return this.findByIdOrThrow(connection, orderId);
@@ -481,24 +470,40 @@ export class OrdersRepository {
     status: OrderStatus,
     expectedVersion: number,
   ): Promise<OrderRecord | null> {
-    const [result] = await this.pool.execute<ResultSetHeader>(
-      `
-        UPDATE orders
-        SET status = ?, version = version + 1
-        WHERE id = ? AND version = ?
-      `,
-      [status, id, expectedVersion],
-    );
-
-    if (result.affectedRows === 0) {
-      const existing = await this.findById(id);
-      if (existing) {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const current = await this.findByIdForUpdate(connection, id);
+      if (!current) {
+        await connection.rollback();
+        return null;
+      }
+      if (current.version !== expectedVersion) {
         throw new OptimisticLockConflictError(id, expectedVersion);
       }
-      return null;
+      this.assertTransition(current.status, status);
+      await connection.execute<ResultSetHeader>(
+        `UPDATE orders SET status = ?, version = version + 1 WHERE id = ?`,
+        [status, id],
+      );
+      const updated = await this.findByIdOrThrow(connection, id);
+      await this.appendDomainEvent(
+        connection,
+        new OrderStatusChanged(
+          id,
+          current.status,
+          status,
+          updated.version,
+        ).toDomainEvent(),
+      );
+      await connection.commit();
+      return updated;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    return this.findById(id);
   }
 
   /**
@@ -520,6 +525,8 @@ export class OrdersRepository {
         return null;
       }
 
+      this.assertTransition(current.status, status);
+
       await connection.execute(
         `
           UPDATE orders
@@ -529,6 +536,15 @@ export class OrdersRepository {
         [status, id],
       );
       const updated = await this.findByIdOrThrow(connection, id);
+      await this.appendDomainEvent(
+        connection,
+        new OrderStatusChanged(
+          id,
+          current.status,
+          status,
+          updated.version,
+        ).toDomainEvent(),
+      );
       await connection.commit();
 
       return updated;
@@ -538,6 +554,32 @@ export class OrdersRepository {
     } finally {
       connection.release();
     }
+  }
+
+  private assertTransition(from: OrderStatus, to: OrderStatus): void {
+    if (!canTransitionOrderStatus(from, to)) {
+      throw new InvalidOrderStatusTransitionError(from, to);
+    }
+  }
+
+  private async appendDomainEvent(
+    connection: PoolConnection,
+    event: ReturnType<OrderCreated['toDomainEvent']>,
+  ): Promise<void> {
+    const envelope = toOutboxEnvelope(event);
+    await connection.execute(
+      `
+        INSERT INTO outbox_events
+          (event_type, aggregate_type, aggregate_id, payload, status, attempts)
+        VALUES (?, ?, ?, ?, 'pending', 0)
+      `,
+      [
+        envelope.eventType,
+        envelope.aggregateType,
+        envelope.aggregateId,
+        JSON.stringify(envelope.payload),
+      ],
+    );
   }
 
   /** Читает и блокирует заказ до завершения текущей транзакции. */

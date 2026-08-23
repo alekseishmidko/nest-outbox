@@ -637,12 +637,13 @@ Definition of Done.
   - [X] Добавить unit-тесты handlers и e2e-регрессию API.
   - [X] Создать `docs/cqrs.md` с критериями, когда CQRS не нужен.
 
-- [ ] Domain events и Process Manager/Saga.
-  - [ ] Описать события `OrderCreated`, `OrderStatusChanged`, `MediaGenerated`.
-  - [ ] Отделить доменное событие от инфраструктурной записи Outbox.
-  - [ ] Реализовать state machine заказа и допустимые переходы статусов.
-  - [ ] Добавить compensating action для неуспешной стадии процесса.
-  - [ ] Добавить integration-тесты resume после падения каждой стадии.
+- [x] Domain events и Process Manager/Saga.
+  - [x] Описать события `OrderCreated`, `OrderStatusChanged`, `MediaGenerated`.
+  - [x] Отделить доменное событие от инфраструктурной записи Outbox.
+  - [x] Реализовать state machine заказа и допустимые переходы статусов.
+  - [x] Добавить compensating action для неуспешной стадии процесса.
+  - [x] Добавить integration-тесты resume после падения каждой стадии.
+  - [x] Создать `docs/domain-events-saga.md` со схемой, lifecycle и ограничениями compensation.
 
 - [ ] Specification pattern для фильтров.
   - [ ] Создать спецификации ownership, status, nearby и date range.

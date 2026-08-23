@@ -16,6 +16,7 @@ const TABLES = [
   'media_assets',
   'outbox_events',
   'refresh_tokens',
+  'order_sagas',
   'orders',
   'maps',
   'users',
