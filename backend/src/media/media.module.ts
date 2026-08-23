@@ -7,6 +7,7 @@ import { QrCodeGenerator } from './generators/qr-code.generator';
 import { MediaRepository } from './repositories/media.repository';
 import { MediaService } from './services/media.service';
 import { MediaStorageService } from './storage/media-storage.service';
+import { DomainEventOutboxWriter } from '../outbox/domain-event-outbox-writer';
 
 /**
  * Модуль медиа.
@@ -22,6 +23,7 @@ import { MediaStorageService } from './storage/media-storage.service';
     MediaRepository,
     MediaService,
     MediaStorageService,
+    DomainEventOutboxWriter,
   ],
   exports: [MediaService],
 })

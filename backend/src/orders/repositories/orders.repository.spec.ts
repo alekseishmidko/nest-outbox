@@ -301,8 +301,9 @@ describe('OrdersRepository', () => {
   });
 
   it('обновляет заказ только при совпадении version', async () => {
-    const pool = {
-      execute: jest.fn().mockResolvedValue([{ affectedRows: 0 }]),
+    const connection = {
+      beginTransaction: jest.fn().mockResolvedValue(undefined),
+      execute: jest.fn(),
       query: jest.fn().mockResolvedValue([
         [
           {
@@ -317,16 +318,20 @@ describe('OrdersRepository', () => {
           },
         ],
       ]),
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn(),
+    };
+    const pool = {
+      getConnection: jest.fn().mockResolvedValue(connection),
     };
     const repository = new OrdersRepository(pool as never);
 
     await expect(
       repository.updateStatus(5, OrderStatus.Completed, 2),
     ).rejects.toMatchObject({ name: 'OptimisticLockConflictError' });
-    expect(pool.execute).toHaveBeenCalledWith(
-      expect.stringContaining('WHERE id = ? AND version = ?'),
-      [OrderStatus.Completed, 5, 2],
-    );
+    expect(connection.rollback).toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalled();
   });
 });
 

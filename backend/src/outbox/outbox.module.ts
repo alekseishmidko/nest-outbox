@@ -4,6 +4,8 @@ import { AuthModule } from '../auth/auth.module';
 import { MediaModule } from '../media/media.module';
 import { OutboxController } from './controllers/outbox.controller';
 import { OrderCreatedOutboxHandler } from './handlers/order-created-outbox.handler';
+import { OrderProcessManager } from './handlers/order-process-manager';
+import { OrderSagaRepository } from '../orders/sagas/order-saga.repository';
 import { OutboxRepository } from './repositories/outbox.repository';
 import { OutboxService } from './services/outbox.service';
 import { OutboxPublisher } from './workers/outbox-publisher';
@@ -18,6 +20,8 @@ import { OutboxPublisher } from './workers/outbox-publisher';
   controllers: [OutboxController],
   providers: [
     OrderCreatedOutboxHandler,
+    OrderProcessManager,
+    OrderSagaRepository,
     OutboxPublisher,
     OutboxRepository,
     OutboxService,

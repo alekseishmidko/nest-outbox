@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { OrdersRepository } from '../repositories/orders.repository';
 import { OptimisticLockConflictError } from '../types/optimistic-lock-conflict.error';
 import { OrderRecord } from '../types/order-record.type';
+import { InvalidOrderStatusTransitionError } from '../types/invalid-order-status-transition.error';
 
 @Injectable()
 export class UpdateOrderStatusHandler {
@@ -25,6 +27,9 @@ export class UpdateOrderStatusHandler {
       if (error instanceof OptimisticLockConflictError) {
         throw new ConflictException(error.message);
       }
+      if (error instanceof InvalidOrderStatusTransitionError) {
+        throw new BadRequestException(error.message);
+      }
       throw error;
     }
   }
@@ -33,11 +38,18 @@ export class UpdateOrderStatusHandler {
     id: number,
     status: UpdateOrderStatusDto['status'],
   ): Promise<OrderRecord> {
-    const order = await this.ordersRepository.updateStatusPessimistic(
-      id,
-      status,
-    );
-    if (!order) throw new NotFoundException(`Заказ ${id} не найден`);
-    return order;
+    try {
+      const order = await this.ordersRepository.updateStatusPessimistic(
+        id,
+        status,
+      );
+      if (!order) throw new NotFoundException(`Заказ ${id} не найден`);
+      return order;
+    } catch (error) {
+      if (error instanceof InvalidOrderStatusTransitionError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 }

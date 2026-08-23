@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { MediaGenerated } from '../../domain/events/media-generated.event';
+import { DomainEventOutboxWriter } from '../../outbox/domain-event-outbox-writer';
 import { GenerateMapQrDto } from '../dto/generate-map-qr.dto';
 import { GenerateUserAvatarDto } from '../dto/generate-user-avatar.dto';
 import { AvatarGenerator } from '../generators/avatar.generator';
@@ -20,6 +22,8 @@ export class MediaService {
     private readonly avatarGenerator: AvatarGenerator,
     private readonly qrCodeGenerator: QrCodeGenerator,
     private readonly mediaStorageService: MediaStorageService,
+    @Optional()
+    private readonly domainEventOutboxWriter?: DomainEventOutboxWriter,
   ) {}
 
   /**
@@ -73,6 +77,9 @@ export class MediaService {
       filePath: storage.filePath,
       metadata: storage.metadata,
     });
+    await this.domainEventOutboxWriter?.append(
+      new MediaGenerated(asset.id, 'user', userId, 'avatar').toDomainEvent(),
+    );
 
     return {
       asset,
@@ -140,6 +147,9 @@ export class MediaService {
       filePath: storage.filePath,
       metadata: storage.metadata,
     });
+    await this.domainEventOutboxWriter?.append(
+      new MediaGenerated(asset.id, 'map', mapId, 'qr_code').toDomainEvent(),
+    );
 
     return {
       asset,
