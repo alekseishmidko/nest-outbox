@@ -1,11 +1,31 @@
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /**
  * DTO query-параметров отчета заказов с offset/cursor pagination.
  */
 export class ReportOrdersPageQueryDto {
+  @ApiPropertyOptional({ description: 'Нижняя граница created_at (ISO 8601).' })
+  @IsOptional()
+  @IsDateString()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'Верхняя граница created_at (ISO 8601).',
+  })
+  @IsOptional()
+  @IsDateString()
+  createdTo?: string;
+
   @ApiPropertyOptional({
     description: 'Режим пагинации для сравнения offset и cursor.',
     enum: ['offset', 'cursor'],

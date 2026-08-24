@@ -25,6 +25,7 @@ import { OrderStatusChanged } from '../../domain/events/order-status-changed.eve
 import { toOutboxEnvelope } from '../../outbox/domain-event-mapper';
 import { canTransitionOrderStatus } from '../order-state-machine';
 import { InvalidOrderStatusTransitionError } from '../types/invalid-order-status-transition.error';
+import { createOrderQueryObject } from '../../common/sql/query-objects/order.query-object';
 
 /**
  * Repository заказов.
@@ -322,8 +323,7 @@ export class OrdersRepository {
    * проблем MySQL native prepared statements с параметрами пагинации.
    */
   async findAll(query: ListOrdersQueryDto): Promise<OrderRecord[]> {
-    const limit = Number(query.limit ?? 20);
-    const offset = Number(query.offset ?? 0);
+    const queryObject = createOrderQueryObject(query);
 
     if (query.status) {
       const [rows] = await this.pool.query<OrderRow[]>(
@@ -342,7 +342,7 @@ export class OrdersRepository {
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?
         `,
-        [query.status, limit, offset],
+        [...queryObject.params, queryObject.limit, queryObject.offset],
       );
 
       return rows.map(this.toRecord);
@@ -363,7 +363,7 @@ export class OrdersRepository {
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `,
-      [limit, offset],
+      [queryObject.limit, queryObject.offset],
     );
 
     return rows.map(this.toRecord);
@@ -378,17 +378,7 @@ export class OrdersRepository {
   async findOverview(
     query: ListOrdersQueryDto,
   ): Promise<OrderOverviewRecord[]> {
-    const limit = Number(query.limit ?? 20);
-    const offset = Number(query.offset ?? 0);
-    const values: SqlValue[] = [];
-    const where: string[] = [];
-
-    if (query.status) {
-      where.push('o.status = ?');
-      values.push(query.status);
-    }
-
-    values.push(limit, offset);
+    const queryObject = createOrderQueryObject(query, 'o');
 
     const [rows] = await this.pool.query<OrderOverviewRow[]>(
       `
@@ -407,11 +397,11 @@ export class OrdersRepository {
         FROM orders o
         JOIN users u ON u.id = o.user_id
         JOIN maps m ON m.id = o.map_id
-        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+        ${queryObject.where}
         ORDER BY o.created_at DESC
         LIMIT ? OFFSET ?
       `,
-      values,
+      [...queryObject.params, queryObject.limit, queryObject.offset],
     );
 
     return rows.map(this.toOverviewRecord);

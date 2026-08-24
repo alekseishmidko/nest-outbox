@@ -4,6 +4,7 @@ import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { NearbyMap } from '../types/nearby-map.type';
 import { RouteMap } from '../types/route-map.type';
 import { RouteMapRow } from '../types/route-map-row.type';
+import { nearby } from '../../common/sql/specifications/filter-specifications';
 
 const KM_PER_LATITUDE_DEGREE = 111.32;
 
@@ -19,11 +20,7 @@ export class RoutesRepository {
     radiusKm: number;
     limit: number;
   }): Promise<NearbyMap[]> {
-    const bounds = this.createBounds(
-      input.latitude,
-      input.longitude,
-      input.radiusKm,
-    );
+    const nearbyWhere = nearby(input).toSql();
     const [rows] = await this.pool.query<RouteMapRow[]>(
       `
         SELECT
@@ -36,8 +33,7 @@ export class RoutesRepository {
             POINT(?, ?)
           ) / 1000 AS distance_km
         FROM maps FORCE INDEX (idx_maps_latitude_longitude)
-        WHERE latitude BETWEEN ? AND ?
-          AND longitude BETWEEN ? AND ?
+        WHERE ${nearbyWhere.sql}
         HAVING distance_km <= ?
         ORDER BY distance_km ASC, id ASC
         LIMIT ?
@@ -45,10 +41,7 @@ export class RoutesRepository {
       [
         input.longitude,
         input.latitude,
-        bounds.minLatitude,
-        bounds.maxLatitude,
-        bounds.minLongitude,
-        bounds.maxLongitude,
+        ...nearbyWhere.params,
         input.radiusKm,
         input.limit,
       ],
@@ -139,18 +132,6 @@ export class RoutesRepository {
     );
 
     return rows.map(this.toMap);
-  }
-
-  private createBounds(latitude: number, longitude: number, radiusKm: number) {
-    const latitudeDelta = radiusKm / KM_PER_LATITUDE_DEGREE;
-    const longitudeDelta = this.longitudeDelta(latitude, radiusKm);
-
-    return {
-      minLatitude: Math.max(-90, latitude - latitudeDelta),
-      maxLatitude: Math.min(90, latitude + latitudeDelta),
-      minLongitude: Math.max(-180, longitude - longitudeDelta),
-      maxLongitude: Math.min(180, longitude + longitudeDelta),
-    };
   }
 
   private longitudeDelta(latitude: number, radiusKm: number): number {

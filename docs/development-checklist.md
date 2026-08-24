@@ -645,11 +645,12 @@ Definition of Done.
   - [x] Добавить integration-тесты resume после падения каждой стадии.
   - [x] Создать `docs/domain-events-saga.md` со схемой, lifecycle и ограничениями compensation.
 
-- [ ] Specification pattern для фильтров.
-  - [ ] Создать спецификации ownership, status, nearby и date range.
-  - [ ] Реализовать композицию `and/or/not` без конкатенации небезопасного SQL.
-  - [ ] Покрыть каждую спецификацию unit-тестами SQL-параметров.
-  - [ ] Сравнить читаемость соотношения specification/query object в документации.
+- [x] Specification pattern для фильтров.
+  - [x] Создать спецификации ownership, status, nearby и date range.
+  - [x] Реализовать композицию `and/or/not` без конкатенации небезопасного SQL.
+  - [x] Покрыть каждую спецификацию unit-тестами SQL-параметров.
+  - [x] Сравнить читаемость соотношения specification/query object в документации.
+  - [x] Создать `docs/specification-pattern.md` со схемой и правилами границ абстракции.
 
 - [ ] Audit log и soft delete.
   - [ ] Добавить миграции `deleted_at`, `created_by`, `updated_by` где необходимо.
