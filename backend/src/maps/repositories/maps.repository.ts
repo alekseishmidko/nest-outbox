@@ -8,6 +8,7 @@ import { UpdateMapDto } from '../dto/update-map.dto';
 import { MapRecord } from '../types/map-record.type';
 import { MapRow } from '../types/map-row.type';
 import { SqlValue } from '../types/sql-value.type';
+import { createMapsQueryObject } from '../../common/sql/query-objects/maps.query-object';
 
 /**
  * Repository карт.
@@ -81,22 +82,7 @@ export class MapsRepository {
    * параметризованной пагинации с `Incorrect arguments to mysqld_stmt_execute`.
    */
   async findAll(query: ListMapsQueryDto): Promise<MapRecord[]> {
-    const limit = Number(query.limit ?? 20);
-    const offset = Number(query.offset ?? 0);
-    const where: string[] = [];
-    const values: SqlValue[] = [];
-
-    if (query.ownerUserId !== undefined) {
-      where.push('owner_user_id = ?');
-      values.push(Number(query.ownerUserId));
-    }
-
-    if (query.search) {
-      where.push('title LIKE ?');
-      values.push(`%${query.search}%`);
-    }
-
-    values.push(limit, offset);
+    const queryObject = createMapsQueryObject(query);
 
     const [rows] = await this.pool.query<MapRow[]>(
       `
@@ -110,11 +96,11 @@ export class MapsRepository {
           created_at,
           updated_at
         FROM maps
-        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+        ${queryObject.where}
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `,
-      values,
+      [...queryObject.params, queryObject.limit, queryObject.offset],
     );
 
     return rows.map(this.toRecord);

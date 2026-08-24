@@ -14,6 +14,7 @@ import { ReportStatusSummaryRow } from '../types/report-status-summary-row.type'
 import { ReportUserRankingRecord } from '../types/report-user-ranking-record.type';
 import { ReportUserRankingRow } from '../types/report-user-ranking-row.type';
 import { SqlValue } from '../types/sql-value.type';
+import { createReportOrdersQueryObject } from '../../common/sql/query-objects/report-orders.query-object';
 
 /**
  * Repository аналитических отчетов.
@@ -109,15 +110,8 @@ export class ReportsRepository {
     const pagination = query.pagination ?? 'offset';
     const limit = Number(query.limit ?? 50);
     const offset = Number(query.offset ?? 0);
-    const values: SqlValue[] = [];
-    const cursorWhere =
-      pagination === 'cursor' && cursor
-        ? 'WHERE (o.created_at < ? OR (o.created_at = ? AND o.id < ?))'
-        : '';
-
-    if (pagination === 'cursor' && cursor) {
-      values.push(cursor.createdAt, cursor.createdAt, cursor.orderId);
-    }
+    const queryObject = createReportOrdersQueryObject(query, cursor);
+    const values: SqlValue[] = [...queryObject.params];
 
     values.push(limit + 1);
 
@@ -139,7 +133,7 @@ export class ReportsRepository {
         FROM orders AS o FORCE INDEX (idx_reports_orders_created_id)
         JOIN users AS u ON u.id = o.user_id
         JOIN maps AS m ON m.id = o.map_id
-        ${cursorWhere}
+        ${queryObject.where}
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT ?
         ${pagination === 'offset' ? 'OFFSET ?' : ''}

@@ -114,7 +114,7 @@ describe('ReportsRepository', () => {
     );
 
     expect(pool.query.mock.calls[0][0]).toContain(
-      'WHERE (o.created_at < ? OR (o.created_at = ? AND o.id < ?))',
+      'WHERE ((o.created_at < ? OR (o.created_at = ? AND o.id < ?)))',
     );
     expect(pool.query.mock.calls[0][0]).not.toContain('OFFSET ?');
     expect(pool.query.mock.calls[0][1]).toEqual([
