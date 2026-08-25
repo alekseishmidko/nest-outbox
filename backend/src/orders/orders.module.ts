@@ -12,6 +12,7 @@ import {
   ListOrdersQueryHandler,
   OrderOverviewQueryHandler,
 } from './queries/orders-query.handlers';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * Модуль заказов.
@@ -19,7 +20,7 @@ import {
  * Используется для тренировки транзакций и записи Outbox-событий.
  */
 @Module({
-  imports: [DatabaseModule, MapsModule, UsersModule, AuthModule],
+  imports: [DatabaseModule, MapsModule, UsersModule, AuthModule, AuditModule],
   controllers: [OrdersController],
   providers: [
     OrdersRepository,

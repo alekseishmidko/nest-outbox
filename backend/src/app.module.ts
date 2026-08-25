@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { AuditModule } from './audit/audit.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { InboxModule } from './inbox/inbox.module';
@@ -43,6 +44,7 @@ import { UsersModule } from './users/users.module';
       },
     }),
     AuthModule,
+    AuditModule,
     DatabaseModule,
     HealthModule,
     InboxModule,

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ResultSetHeader } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
@@ -9,6 +9,7 @@ import { MapRecord } from '../types/map-record.type';
 import { MapRow } from '../types/map-row.type';
 import { SqlValue } from '../types/sql-value.type';
 import { createMapsQueryObject } from '../../common/sql/query-objects/maps.query-object';
+import { AuditLogRepository } from '../../audit/audit-log.repository';
 
 /**
  * Repository карт.
@@ -17,7 +18,10 @@ import { createMapsQueryObject } from '../../common/sql/query-objects/maps.query
  */
 @Injectable()
 export class MapsRepository {
-  constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(MYSQL_POOL) private readonly pool: Pool,
+    @Optional() private readonly auditLog?: AuditLogRepository,
+  ) {}
 
   /**
    * Создает карту и возвращает полную запись из БД.
@@ -96,7 +100,7 @@ export class MapsRepository {
           created_at,
           updated_at
         FROM maps
-        ${queryObject.where}
+        WHERE deleted_at IS NULL${queryObject.where ? ` AND ${queryObject.where.replace(/^WHERE /, '')}` : ''}
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `,
@@ -122,7 +126,7 @@ export class MapsRepository {
           created_at,
           updated_at
         FROM maps
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
       `,
       [id],
@@ -137,7 +141,12 @@ export class MapsRepository {
    * SQL собирается только из разрешенных полей DTO. Пользовательский ввод не
    * попадает в имена колонок, значения передаются через placeholders.
    */
-  async update(id: number, dto: UpdateMapDto): Promise<MapRecord | null> {
+  async update(
+    id: number,
+    dto: UpdateMapDto,
+    actorUserId?: number,
+  ): Promise<MapRecord | null> {
+    const before = await this.findById(id);
     const fields: string[] = [];
     const values: SqlValue[] = [];
 
@@ -160,20 +169,36 @@ export class MapsRepository {
       fields.push('longitude = ?');
       values.push(dto.longitude);
     }
+    if (dto.ownerUserId !== undefined) {
+      fields.push('owner_user_id = ?');
+      values.push(dto.ownerUserId);
+    }
 
     if (fields.length > 0) {
-      values.push(id);
+      fields.push('updated_by = ?');
+      values.push(actorUserId ?? null, id);
       await this.pool.execute(
         `
           UPDATE maps
           SET ${fields.join(', ')}
-          WHERE id = ?
+          WHERE id = ? AND deleted_at IS NULL
         `,
         values,
       );
     }
 
-    return this.findById(id);
+    const after = await this.findById(id);
+    if (before && after && before.ownerUserId !== after.ownerUserId) {
+      await this.auditLog?.append({
+        actorUserId: actorUserId ?? null,
+        action: 'ownership_change',
+        entityType: 'map',
+        entityId: id,
+        before: { ownerUserId: before.ownerUserId },
+        after: { ownerUserId: after.ownerUserId },
+      });
+    }
+    return after;
   }
 
   /**
@@ -181,12 +206,20 @@ export class MapsRepository {
    *
    * Возвращает `true`, если MySQL реально удалил строку.
    */
-  async delete(id: number): Promise<boolean> {
+  async delete(id: number, actorUserId?: number): Promise<boolean> {
     const [result] = await this.pool.execute<ResultSetHeader>(
-      'DELETE FROM maps WHERE id = ?',
-      [id],
+      'UPDATE maps SET deleted_at = CURRENT_TIMESTAMP(3), updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [actorUserId ?? null, id],
     );
 
+    return result.affectedRows > 0;
+  }
+
+  async restore(id: number, actorUserId?: number): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      'UPDATE maps SET deleted_at = NULL, updated_by = ? WHERE id = ? AND deleted_at IS NOT NULL',
+      [actorUserId ?? null, id],
+    );
     return result.affectedRows > 0;
   }
 

@@ -68,8 +68,12 @@ export class UsersService {
     );
   }
 
-  async update(id: number, dto: UpdateUserDto): Promise<UserRecord> {
-    const user = await this.usersRepository.update(id, dto);
+  async update(
+    id: number,
+    dto: UpdateUserDto,
+    actorUserId?: number,
+  ): Promise<UserRecord> {
+    const user = await this.usersRepository.update(id, dto, actorUserId);
 
     if (!user) {
       throw new NotFoundException(`Пользователь ${id} не найден`);
@@ -78,11 +82,11 @@ export class UsersService {
     return user;
   }
 
-  async delete(id: number): Promise<{ deleted: true }> {
+  async delete(id: number, actorUserId?: number): Promise<{ deleted: true }> {
     let deleted: boolean;
 
     try {
-      deleted = await this.usersRepository.delete(id);
+      deleted = await this.usersRepository.delete(id, actorUserId);
     } catch (error) {
       if (isMysqlForeignKeyReferencedError(error)) {
         throw new ConflictException(
@@ -98,6 +102,24 @@ export class UsersService {
     }
 
     return { deleted: true };
+  }
+
+  async updateRole(
+    id: number,
+    role: 'admin' | 'user',
+    actorUserId?: number,
+  ): Promise<{ updated: true }> {
+    if (!(await this.usersRepository.updateRole(id, role, actorUserId)))
+      throw new NotFoundException(`Пользователь ${id} не найден`);
+    return { updated: true };
+  }
+
+  async restore(id: number, actorUserId?: number): Promise<{ restored: true }> {
+    if (!(await this.usersRepository.restore(id, actorUserId)))
+      throw new NotFoundException(
+        `Пользователь ${id} не найден или уже восстановлен`,
+      );
+    return { restored: true };
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { ResultSetHeader } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
@@ -26,6 +26,7 @@ import { toOutboxEnvelope } from '../../outbox/domain-event-mapper';
 import { canTransitionOrderStatus } from '../order-state-machine';
 import { InvalidOrderStatusTransitionError } from '../types/invalid-order-status-transition.error';
 import { createOrderQueryObject } from '../../common/sql/query-objects/order.query-object';
+import { AuditLogRepository } from '../../audit/audit-log.repository';
 
 /**
  * Repository заказов.
@@ -38,7 +39,10 @@ export class OrdersRepository {
   private readonly transactionMaxAttempts = 3;
   private readonly transactionRetryBaseDelayMs = 50;
 
-  constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(MYSQL_POOL) private readonly pool: Pool,
+    @Optional() private readonly auditLog?: AuditLogRepository,
+  ) {}
 
   /**
    * Создает заказ и Outbox-событие `order.created` в одной транзакции.
@@ -338,7 +342,7 @@ export class OrdersRepository {
             created_at,
             updated_at
           FROM orders
-          WHERE status = ?
+          WHERE deleted_at IS NULL AND status = ?
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?
         `,
@@ -360,6 +364,7 @@ export class OrdersRepository {
           created_at,
           updated_at
         FROM orders
+        WHERE deleted_at IS NULL
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `,
@@ -397,7 +402,7 @@ export class OrdersRepository {
         FROM orders o
         JOIN users u ON u.id = o.user_id
         JOIN maps m ON m.id = o.map_id
-        ${queryObject.where}
+        WHERE o.deleted_at IS NULL AND u.deleted_at IS NULL AND m.deleted_at IS NULL${queryObject.where ? ` AND ${queryObject.where.replace(/^WHERE /, '')}` : ''}
         ORDER BY o.created_at DESC
         LIMIT ? OFFSET ?
       `,
@@ -423,7 +428,7 @@ export class OrdersRepository {
           created_at,
           updated_at
         FROM orders
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
       `,
       [id],
@@ -459,6 +464,7 @@ export class OrdersRepository {
     id: number,
     status: OrderStatus,
     expectedVersion: number,
+    actorUserId?: number,
   ): Promise<OrderRecord | null> {
     const connection = await this.pool.getConnection();
     try {
@@ -473,8 +479,8 @@ export class OrdersRepository {
       }
       this.assertTransition(current.status, status);
       await connection.execute<ResultSetHeader>(
-        `UPDATE orders SET status = ?, version = version + 1 WHERE id = ?`,
-        [status, id],
+        `UPDATE orders SET status = ?, version = version + 1, updated_by = ? WHERE id = ? AND deleted_at IS NULL`,
+        [status, actorUserId ?? null, id],
       );
       const updated = await this.findByIdOrThrow(connection, id);
       await this.appendDomainEvent(
@@ -485,6 +491,17 @@ export class OrdersRepository {
           status,
           updated.version,
         ).toDomainEvent(),
+      );
+      await this.auditLog?.append(
+        {
+          actorUserId: actorUserId ?? null,
+          action: 'status_change',
+          entityType: 'order',
+          entityId: id,
+          before: { status: current.status, version: current.version },
+          after: { status, version: updated.version },
+        },
+        connection,
       );
       await connection.commit();
       return updated;
@@ -503,6 +520,7 @@ export class OrdersRepository {
   async updateStatusPessimistic(
     id: number,
     status: OrderStatus,
+    actorUserId?: number,
   ): Promise<OrderRecord | null> {
     const connection = await this.pool.getConnection();
 
@@ -520,10 +538,10 @@ export class OrdersRepository {
       await connection.execute(
         `
           UPDATE orders
-          SET status = ?, version = version + 1
-          WHERE id = ?
+          SET status = ?, version = version + 1, updated_by = ?
+          WHERE id = ? AND deleted_at IS NULL
         `,
-        [status, id],
+        [status, actorUserId ?? null, id],
       );
       const updated = await this.findByIdOrThrow(connection, id);
       await this.appendDomainEvent(
@@ -534,6 +552,17 @@ export class OrdersRepository {
           status,
           updated.version,
         ).toDomainEvent(),
+      );
+      await this.auditLog?.append(
+        {
+          actorUserId: actorUserId ?? null,
+          action: 'status_change',
+          entityType: 'order',
+          entityId: id,
+          before: { status: current.status, version: current.version },
+          after: { status, version: updated.version },
+        },
+        connection,
       );
       await connection.commit();
 
@@ -589,7 +618,7 @@ export class OrdersRepository {
           created_at,
           updated_at
         FROM orders
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
         FOR UPDATE
       `,
@@ -612,7 +641,7 @@ export class OrdersRepository {
   ): Promise<OrderRecord[]> {
     const limit = Number(query.limit ?? 20);
     const offset = Number(query.offset ?? 0);
-    const where = [`${columnName} = ?`];
+    const where = [`deleted_at IS NULL`, `${columnName} = ?`];
     const values: SqlValue[] = [Number(value)];
 
     if (query.status) {
@@ -663,7 +692,7 @@ export class OrdersRepository {
           created_at,
           updated_at
         FROM orders
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
       `,
       [id],

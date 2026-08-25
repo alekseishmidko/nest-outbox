@@ -703,6 +703,13 @@ Definition of Done.
 
 ### P2 — качество, безопасность и CI
 
+- [x] Audit log и soft delete.
+  - [x] Добавить `deleted_at`, `created_by`, `updated_by` и миграцию `audit_log`.
+  - [x] Аудитировать status заказа, ownership карты и изменение ролей.
+  - [x] Исключать soft-deleted записи из обычных запросов и auth/ownership checks.
+  - [x] Добавить restore endpoints и integration-регрессию доступа.
+  - [x] Описать схему и эксплуатационные критерии в `docs/audit-soft-delete.md`.
+
 - [ ] Security hardening.
   - [ ] Подключить Helmet, CSP, HSTS и secure headers.
   - [ ] Добавить CSRF-защиту для cookie-based auth сценариев.

@@ -8,6 +8,9 @@
 `001_create_core_tables.sql` создает базовую схему, последующие миграции добавляют
 надежность Outbox, optimistic locking и специализированные индексы.
 
+Миграция `013_add_audit_and_soft_delete.sql` добавляет soft delete и таблицу
+`audit_log`; подробное описание сценариев находится в [audit-soft-delete.md](audit-soft-delete.md).
+
 Практические запросы: `docs/sql-examples.md`.
 Seed и миграции: `docs/seed.md`.
 

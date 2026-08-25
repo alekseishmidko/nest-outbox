@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ResultSetHeader } from 'mysql2';
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
@@ -12,6 +12,7 @@ import { UserActivityRecord } from '../types/user-activity-record.type';
 import { UserActivityRow } from '../types/user-activity-row.type';
 import { UserRecord } from '../types/user-record.type';
 import { UserRow } from '../types/user-row.type';
+import { AuditLogRepository } from '../../audit/audit-log.repository';
 
 /**
  * Repository пользователей.
@@ -20,7 +21,10 @@ import { UserRow } from '../types/user-row.type';
  */
 @Injectable()
 export class UsersRepository {
-  constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(MYSQL_POOL) private readonly pool: Pool,
+    @Optional() private readonly auditLog?: AuditLogRepository,
+  ) {}
 
   /**
    * Создает пользователя и возвращает созданную запись.
@@ -53,7 +57,7 @@ export class UsersRepository {
     );
     const [rows] = await connection.execute<UserRow[]>(
       `SELECT id, email, name, avatar_seed, created_at, updated_at
-       FROM users WHERE id = ? LIMIT 1`,
+       FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
       [result.insertId],
     );
     if (!rows[0])
@@ -80,7 +84,7 @@ export class UsersRepository {
             created_at,
             updated_at
           FROM users
-          WHERE email LIKE ? OR name LIKE ?
+          WHERE deleted_at IS NULL AND (email LIKE ? OR name LIKE ?)
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?
         `,
@@ -100,6 +104,7 @@ export class UsersRepository {
           created_at,
           updated_at
         FROM users
+        WHERE deleted_at IS NULL
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
       `,
@@ -123,7 +128,7 @@ export class UsersRepository {
           created_at,
           updated_at
         FROM users
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
       `,
       [id],
@@ -203,7 +208,7 @@ export class UsersRepository {
         ) AS latest_map_qr ON latest_map_qr.owner_id = m.id
         LEFT JOIN media_assets AS map_qr
           ON map_qr.id = latest_map_qr.asset_id
-        WHERE u.id = ?
+        WHERE u.id = ? AND u.deleted_at IS NULL AND o.deleted_at IS NULL AND m.deleted_at IS NULL
         ${cursorWhere}
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT ?
@@ -224,7 +229,11 @@ export class UsersRepository {
   /**
    * Обновляет пользователя и возвращает свежую запись.
    */
-  async update(id: number, dto: UpdateUserDto): Promise<UserRecord | null> {
+  async update(
+    id: number,
+    dto: UpdateUserDto,
+    actorUserId?: number,
+  ): Promise<UserRecord | null> {
     const fields: string[] = [];
     const values: SqlValue[] = [];
 
@@ -244,12 +253,14 @@ export class UsersRepository {
     }
 
     if (fields.length > 0) {
+      fields.push('updated_by = ?');
+      values.push(actorUserId ?? null);
       values.push(id);
       await this.pool.execute(
         `
           UPDATE users
           SET ${fields.join(', ')}
-          WHERE id = ?
+          WHERE id = ? AND deleted_at IS NULL
         `,
         values,
       );
@@ -261,13 +272,48 @@ export class UsersRepository {
   /**
    * Удаляет пользователя по идентификатору.
    */
-  async delete(id: number): Promise<boolean> {
+  async delete(id: number, actorUserId?: number): Promise<boolean> {
     const [result] = await this.pool.execute<ResultSetHeader>(
-      'DELETE FROM users WHERE id = ?',
-      [id],
+      'UPDATE users SET deleted_at = CURRENT_TIMESTAMP(3), updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [actorUserId ?? null, id],
     );
 
     return result.affectedRows > 0;
+  }
+
+  async restore(id: number, actorUserId?: number): Promise<boolean> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      'UPDATE users SET deleted_at = NULL, updated_by = ? WHERE id = ? AND deleted_at IS NOT NULL',
+      [actorUserId ?? null, id],
+    );
+    return result.affectedRows > 0;
+  }
+
+  async updateRole(
+    id: number,
+    role: 'admin' | 'user',
+    actorUserId?: number,
+  ): Promise<boolean> {
+    const [rows] = await this.pool.query<
+      Array<UserRow & { role: 'admin' | 'user' }>
+    >(
+      'SELECT id, role FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      [id],
+    );
+    if (!rows[0]) return false;
+    await this.pool.execute(
+      'UPDATE users SET role = ?, updated_by = ? WHERE id = ? AND deleted_at IS NULL',
+      [role, actorUserId ?? null, id],
+    );
+    await this.auditLog?.append({
+      actorUserId: actorUserId ?? null,
+      action: 'role_change',
+      entityType: 'user',
+      entityId: id,
+      before: { role: rows[0].role },
+      after: { role },
+    });
+    return true;
   }
 
   /**
