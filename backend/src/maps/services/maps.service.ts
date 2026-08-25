@@ -47,8 +47,12 @@ export class MapsService {
     return map;
   }
 
-  async update(id: number, dto: UpdateMapDto): Promise<MapRecord> {
-    const map = await this.mapsRepository.update(id, dto);
+  async update(
+    id: number,
+    dto: UpdateMapDto,
+    actorUserId?: number,
+  ): Promise<MapRecord> {
+    const map = await this.mapsRepository.update(id, dto, actorUserId);
 
     if (!map) {
       throw new NotFoundException(`Карта ${id} не найдена`);
@@ -57,11 +61,11 @@ export class MapsService {
     return map;
   }
 
-  async delete(id: number): Promise<{ deleted: true }> {
+  async delete(id: number, actorUserId?: number): Promise<{ deleted: true }> {
     let deleted: boolean;
 
     try {
-      deleted = await this.mapsRepository.delete(id);
+      deleted = await this.mapsRepository.delete(id, actorUserId);
     } catch (error) {
       if (isMysqlForeignKeyReferencedError(error)) {
         throw new ConflictException(
@@ -77,5 +81,13 @@ export class MapsService {
     }
 
     return { deleted: true };
+  }
+
+  async restore(id: number, actorUserId?: number): Promise<{ restored: true }> {
+    if (!(await this.mapsRepository.restore(id, actorUserId)))
+      throw new NotFoundException(
+        `Карта ${id} не найдена или уже восстановлена`,
+      );
+    return { restored: true };
   }
 }

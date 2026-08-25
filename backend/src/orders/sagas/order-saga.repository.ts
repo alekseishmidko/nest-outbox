@@ -44,9 +44,10 @@ export class OrderSagaRepository {
       if (row.status === 'failed') {
         const [orders] = await connection.execute<
           (RowDataPacket & { status: OrderStatus; version: number })[]
-        >('SELECT status, version FROM orders WHERE id = ? FOR UPDATE', [
-          orderId,
-        ]);
+        >(
+          'SELECT status, version FROM orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [orderId],
+        );
         const order = orders[0];
         if (order?.status === OrderStatus.Failed) {
           await connection.execute(
@@ -114,9 +115,10 @@ export class OrderSagaRepository {
       );
       const [orders] = await connection.execute<
         (RowDataPacket & { status: OrderStatus; version: number })[]
-      >('SELECT status, version FROM orders WHERE id = ? FOR UPDATE', [
-        orderId,
-      ]);
+      >(
+        'SELECT status, version FROM orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [orderId],
+      );
       const order = orders[0];
       if (
         order &&

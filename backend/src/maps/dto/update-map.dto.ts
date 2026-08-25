@@ -8,12 +8,20 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 /**
  * DTO обновления карты.
  */
 export class UpdateMapDto {
+  @ApiPropertyOptional({ description: 'Новый владелец карты.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  ownerUserId?: number;
   @ApiPropertyOptional({
     description: 'Новое название карты.',
     example: 'Updated QR map',

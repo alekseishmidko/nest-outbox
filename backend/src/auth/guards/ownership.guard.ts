@@ -87,7 +87,7 @@ export class OwnershipGuard implements CanActivate {
 
   private async ownsMap(userId: number, mapId: number): Promise<boolean> {
     const [rows] = await this.pool.execute<OwnerRow[]>(
-      'SELECT owner_user_id FROM maps WHERE id = ? LIMIT 1',
+      'SELECT owner_user_id FROM maps WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [mapId],
     );
     return rows[0]?.owner_user_id === userId;
@@ -95,7 +95,7 @@ export class OwnershipGuard implements CanActivate {
 
   private async ownsOrder(userId: number, orderId: number): Promise<boolean> {
     const [rows] = await this.pool.execute<OrderOwnerRow[]>(
-      'SELECT user_id FROM orders WHERE id = ? LIMIT 1',
+      'SELECT user_id FROM orders WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [orderId],
     );
     return rows[0]?.user_id === userId;
@@ -111,7 +111,7 @@ export class OwnershipGuard implements CanActivate {
     if (media.owner_type === 'user') return media.owner_id === userId;
     if (media.owner_type === 'map') return this.ownsMap(userId, media.owner_id);
     const [orders] = await this.pool.execute<OrderOwnerRow[]>(
-      'SELECT user_id FROM orders WHERE id = ? LIMIT 1',
+      'SELECT user_id FROM orders WHERE id = ? AND deleted_at IS NULL LIMIT 1',
       [media.owner_id],
     );
     return orders[0]?.user_id === userId;

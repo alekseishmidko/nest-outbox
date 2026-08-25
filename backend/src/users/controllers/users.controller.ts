@@ -21,6 +21,9 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserActivityQueryDto } from '../dto/user-activity-query.dto';
 import { UsersService } from '../services/users.service';
 import { UserActivityQueryHandler } from '../queries/user-activity-query.handler';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { AuthUser } from '../../auth/types/auth-user.type';
+import { UpdateUserRoleDto } from '../dto/update-user-role.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -69,14 +72,39 @@ export class UsersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Обновить пользователя' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.usersService.update(id, dto, user.id);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, OwnershipGuard)
   @ApiOperation({ summary: 'Удалить пользователя' })
-  delete(@Param('id', ParseIntPipe) id: number) {
-    return this.usersService.delete(id);
+  delete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+    return this.usersService.delete(id, user.id);
+  }
+
+  @Patch(':id/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  updateRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserRoleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.usersService.updateRole(id, dto.role, user.id);
+  }
+
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.usersService.restore(id, user.id);
   }
 }

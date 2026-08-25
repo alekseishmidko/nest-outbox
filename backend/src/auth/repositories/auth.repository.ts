@@ -66,7 +66,7 @@ export class AuthRepository {
     const [rows] = await this.pool.execute<UserAuthRow[]>(
       `
         SELECT id, email, name, avatar_seed, password_hash, role
-        FROM users WHERE email = ? LIMIT 1
+        FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1
       `,
       [email],
     );
@@ -77,7 +77,7 @@ export class AuthRepository {
     const [rows] = await this.pool.execute<UserAuthRow[]>(
       `
         SELECT id, email, name, avatar_seed, password_hash, role
-        FROM users WHERE id = ? LIMIT 1
+        FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1
       `,
       [id],
     );
@@ -118,7 +118,7 @@ export class AuthRepository {
                rt.expires_at, rt.rotated_at, rt.revoked_at
         FROM refresh_tokens rt
         JOIN users u ON u.id = rt.user_id
-        WHERE rt.token_hash = ?
+        WHERE rt.token_hash = ? AND u.deleted_at IS NULL
         LIMIT 1
       `,
       [tokenHash],
@@ -163,7 +163,7 @@ export class AuthRepository {
                  rt.expires_at, rt.rotated_at, rt.revoked_at
           FROM refresh_tokens rt
           JOIN users u ON u.id = rt.user_id
-          WHERE rt.token_hash = ?
+          WHERE rt.token_hash = ? AND u.deleted_at IS NULL
           LIMIT 1
           FOR UPDATE
         `,

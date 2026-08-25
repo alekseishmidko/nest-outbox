@@ -10,13 +10,14 @@ type DatabaseTestKit = {
 };
 
 const TABLES = [
+  'audit_log',
+  'order_sagas',
   'inbox_events',
   'processed_events',
   'idempotency_keys',
   'media_assets',
   'outbox_events',
   'refresh_tokens',
-  'order_sagas',
   'orders',
   'maps',
   'users',

@@ -39,7 +39,7 @@ export class MediaRepository {
           name,
           avatar_seed
         FROM users
-        WHERE id = ?
+        WHERE deleted_at IS NULL AND id = ?
         LIMIT 1
       `,
       [userId],
@@ -62,7 +62,7 @@ export class MediaRepository {
           longitude,
           owner_user_id
         FROM maps
-        WHERE id = ?
+        WHERE deleted_at IS NULL AND id = ?
         LIMIT 1
       `,
       [mapId],

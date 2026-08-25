@@ -17,6 +17,8 @@ import { UpdateOrderStatusPessimisticDto } from '../dto/update-order-status-pess
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { OwnershipGuard } from '../../auth/guards/ownership.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { AuthUser } from '../../auth/types/auth-user.type';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { CreateOrderHandler } from '../commands/create-order.handler';
@@ -105,8 +107,9 @@ export class OrdersController {
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.updateOrderStatusHandler.execute(id, dto);
+    return this.updateOrderStatusHandler.execute(id, dto, user.id);
   }
 
   @Patch(':id/status/pessimistic')
@@ -117,7 +120,12 @@ export class OrdersController {
   updateStatusPessimistic(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateOrderStatusPessimisticDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.updateOrderStatusHandler.executePessimistic(id, dto.status);
+    return this.updateOrderStatusHandler.executePessimistic(
+      id,
+      dto.status,
+      user.id,
+    );
   }
 }

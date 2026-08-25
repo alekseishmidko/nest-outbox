@@ -5,6 +5,7 @@ import { UsersController } from './controllers/users.controller';
 import { UsersRepository } from './repositories/users.repository';
 import { UsersService } from './services/users.service';
 import { UserActivityQueryHandler } from './queries/user-activity-query.handler';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * Модуль пользователей.
@@ -12,7 +13,7 @@ import { UserActivityQueryHandler } from './queries/user-activity-query.handler'
  * Отвечает за HTTP API, бизнес-логику и SQL-доступ к таблице `users`.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, AuditModule],
   controllers: [UsersController],
   providers: [UsersRepository, UsersService, UserActivityQueryHandler],
   exports: [UsersService, UsersRepository],
