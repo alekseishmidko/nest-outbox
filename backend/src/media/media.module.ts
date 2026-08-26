@@ -8,6 +8,7 @@ import { MediaRepository } from './repositories/media.repository';
 import { MediaService } from './services/media.service';
 import { MediaStorageService } from './storage/media-storage.service';
 import { DomainEventOutboxWriter } from '../outbox/domain-event-outbox-writer';
+import { SecurityModule } from '../security/security.module';
 
 /**
  * Модуль медиа.
@@ -15,7 +16,7 @@ import { DomainEventOutboxWriter } from '../outbox/domain-event-outbox-writer';
  * Отвечает за генерацию и хранение QR-code и avatar.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, SecurityModule],
   controllers: [MediaController],
   providers: [
     AvatarGenerator,

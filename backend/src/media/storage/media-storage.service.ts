@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { dirname, extname, join } from 'node:path';
@@ -8,6 +8,7 @@ import {
 } from '../config/media-storage.config';
 import { MediaStorageSaveInput } from '../types/media-storage-save-input.type';
 import { MediaStorageSaveResult } from '../types/media-storage-save-result.type';
+import { MediaSecurityService } from '../../security/media-security.service';
 
 /**
  * Слой хранения media assets.
@@ -19,7 +20,9 @@ import { MediaStorageSaveResult } from '../types/media-storage-save-result.type'
 export class MediaStorageService {
   private readonly config: MediaStorageConfig;
 
-  constructor() {
+  constructor(
+    @Optional() private readonly mediaSecurity?: MediaSecurityService,
+  ) {
     this.config = parseMediaStorageConfig();
   }
 
@@ -27,6 +30,7 @@ export class MediaStorageService {
    * Сохраняет media content в storage backend, выбранный через env.
    */
   async save(input: MediaStorageSaveInput): Promise<MediaStorageSaveResult> {
+    this.mediaSecurity?.validate(input.content, input.mimeType);
     if (this.config.MEDIA_STORAGE_MODE === 'database') {
       return this.saveToDatabase(input);
     }
@@ -61,6 +65,10 @@ export class MediaStorageService {
   ): Promise<MediaStorageSaveResult> {
     const objectKey = this.createObjectKey(input);
     const absolutePath = join(this.config.MEDIA_LOCAL_STORAGE_DIR, objectKey);
+    this.mediaSecurity?.assertSafePath(
+      this.config.MEDIA_LOCAL_STORAGE_DIR,
+      absolutePath,
+    );
 
     await mkdir(dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, input.content);

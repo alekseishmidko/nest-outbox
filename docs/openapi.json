@@ -1,0 +1,2022 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "summary": "Зарегистрировать пользователя и выдать JWT",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "summary": "Войти по email и паролю",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "summary": "Ротировать refresh token",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "summary": "Отозвать refresh token текущего пользователя",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "HealthController_checkReadiness",
+        "summary": "Проверить готовность приложения и MySQL",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "HealthController_checkLiveness",
+        "summary": "Проверить, что HTTP-процесс приложения жив",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/inbox/events": {
+      "post": {
+        "operationId": "InboxController_receive",
+        "summary": "Принять входящее событие в Inbox",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiveInboxEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/maps": {
+      "post": {
+        "operationId": "MapsController_create",
+        "summary": "Создать карту",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      },
+      "get": {
+        "operationId": "MapsController_findAll",
+        "summary": "Получить список карт",
+        "parameters": [
+          {
+            "name": "ownerUserId",
+            "required": false,
+            "in": "query",
+            "description": "ID пользователя-владельца для фильтрации карт.",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Поиск по названию карты.",
+            "schema": {
+              "example": "park",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      }
+    },
+    "/maps/{id}": {
+      "get": {
+        "operationId": "MapsController_findById",
+        "summary": "Получить карту по id",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      },
+      "patch": {
+        "operationId": "MapsController_update",
+        "summary": "Обновить карту",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      },
+      "delete": {
+        "operationId": "MapsController_delete",
+        "summary": "Удалить карту",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      }
+    },
+    "/maps/{id}/restore": {
+      "post": {
+        "operationId": "MapsController_restore",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "maps"
+        ]
+      }
+    },
+    "/users": {
+      "post": {
+        "operationId": "UsersController_create",
+        "summary": "Создать пользователя",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "get": {
+        "operationId": "UsersController_findAll",
+        "summary": "Получить список пользователей",
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Поисковая строка по email или имени.",
+            "schema": {
+              "example": "alex",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}/activity": {
+      "get": {
+        "operationId": "UsersController_findActivity",
+        "summary": "Получить пользователя, его заказы, карты и media через сложный JOIN",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "pagination",
+            "required": false,
+            "in": "query",
+            "description": "Режим пагинации.",
+            "schema": {
+              "default": "offset",
+              "enum": [
+                "offset",
+                "cursor"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor для cursor pagination.",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA1VDAwOjAwOjAwLjAwMFoiLCJvcmRlcklkIjoxMDB9",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findById",
+        "summary": "Получить пользователя по id",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_update",
+        "summary": "Обновить пользователя",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_delete",
+        "summary": "Удалить пользователя",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}/role": {
+      "patch": {
+        "operationId": "UsersController_updateRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}/restore": {
+      "post": {
+        "operationId": "UsersController_restore",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/media/users/{userId}/avatar": {
+      "post": {
+        "operationId": "MediaController_generateUserAvatar",
+        "summary": "Сгенерировать avatar для пользователя",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateUserAvatarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/maps/{mapId}/qr": {
+      "post": {
+        "operationId": "MediaController_generateMapQr",
+        "summary": "Сгенерировать QR-code для карты",
+        "parameters": [
+          {
+            "name": "mapId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateMapQrDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "operationId": "MediaController_findById",
+        "summary": "Получить media asset по id",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/orders": {
+      "post": {
+        "operationId": "OrdersController_create",
+        "summary": "Создать заказ и Outbox-событие в одной транзакции",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Ключ идемпотентности для безопасного повтора POST /orders после timeout/retry клиента.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      },
+      "get": {
+        "operationId": "OrdersController_findAll",
+        "summary": "Получить список заказов",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заказа.",
+            "schema": {
+              "enum": [
+                "pending",
+                "paid",
+                "completed",
+                "cancelled",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/reports/overview": {
+      "get": {
+        "operationId": "OrdersController_findOverview",
+        "summary": "Получить отчет заказов с JOIN между users, maps и orders",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заказа.",
+            "schema": {
+              "enum": [
+                "pending",
+                "paid",
+                "completed",
+                "cancelled",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/users/{userId}": {
+      "get": {
+        "operationId": "OrdersController_findByUserId",
+        "summary": "Получить заказы пользователя",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заказа.",
+            "schema": {
+              "enum": [
+                "pending",
+                "paid",
+                "completed",
+                "cancelled",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/maps/{mapId}": {
+      "get": {
+        "operationId": "OrdersController_findByMapId",
+        "summary": "Получить заказы по карте",
+        "parameters": [
+          {
+            "name": "mapId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу заказа.",
+            "schema": {
+              "enum": [
+                "pending",
+                "paid",
+                "completed",
+                "cancelled",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_findById",
+        "summary": "Получить заказ по id",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}/status": {
+      "patch": {
+        "operationId": "OrdersController_updateStatus",
+        "summary": "Изменить статус заказа с optimistic locking",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}/status/pessimistic": {
+      "patch": {
+        "operationId": "OrdersController_updateStatusPessimistic",
+        "summary": "Изменить статус внутри транзакции с SELECT ... FOR UPDATE",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderStatusPessimisticDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/outbox/events": {
+      "get": {
+        "operationId": "OutboxController_findAll",
+        "summary": "Получить список Outbox-событий",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Фильтр по статусу Outbox-события.",
+            "schema": {
+              "enum": [
+                "pending",
+                "processing",
+                "processed",
+                "failed",
+                "dead_letter"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "outbox"
+        ]
+      }
+    },
+    "/outbox/events/{id}": {
+      "get": {
+        "operationId": "OutboxController_findById",
+        "summary": "Получить Outbox-событие по id",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "outbox"
+        ]
+      }
+    },
+    "/outbox/events/{id}/retry": {
+      "post": {
+        "operationId": "OutboxController_retry",
+        "summary": "Повторно поставить Outbox-событие в обработку",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryOutboxEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "outbox"
+        ]
+      }
+    },
+    "/outbox/events/{id}/requeue": {
+      "post": {
+        "operationId": "OutboxController_requeueDeadLetter",
+        "summary": "Вернуть dead-letter Outbox-событие в обработку",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryOutboxEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "outbox"
+        ]
+      }
+    },
+    "/reports/orders/status-summary": {
+      "get": {
+        "operationId": "ReportsController_findOrderStatusSummary",
+        "summary": "Получить GROUP BY статистику заказов по статусам",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/users/revenue-ranking": {
+      "get": {
+        "operationId": "ReportsController_findUserRevenueRanking",
+        "summary": "Получить ranking пользователей через ROW_NUMBER, RANK и SUM() OVER",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество строк в отчете.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/orders/page": {
+      "get": {
+        "operationId": "ReportsController_findOrdersPage",
+        "summary": "Получить страницу заказов для сравнения offset/cursor pagination",
+        "parameters": [
+          {
+            "name": "createdFrom",
+            "required": false,
+            "in": "query",
+            "description": "Нижняя граница created_at (ISO 8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdTo",
+            "required": false,
+            "in": "query",
+            "description": "Верхняя граница created_at (ISO 8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagination",
+            "required": false,
+            "in": "query",
+            "description": "Режим пагинации для сравнения offset и cursor.",
+            "schema": {
+              "default": "offset",
+              "enum": [
+                "offset",
+                "cursor"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Количество записей на странице.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "example": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Смещение для offset pagination.",
+            "schema": {
+              "minimum": 0,
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Cursor для cursor pagination.",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTA1VDAwOjAwOjAwLjAwMFoiLCJvcmRlcklkIjoxMDB9",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/explain": {
+      "get": {
+        "operationId": "ReportsController_explainAnalyze",
+        "summary": "Получить EXPLAIN ANALYZE для reports-запросов до/после индексов",
+        "parameters": [
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "description": "Какой SQL-план нужно снять.",
+            "schema": {
+              "default": "orders_page",
+              "enum": [
+                "orders_page",
+                "status_summary",
+                "user_ranking"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "Режим плана: before имитирует отсутствие новых индексов через IGNORE INDEX, after использует оптимизированный план.",
+            "schema": {
+              "default": "after",
+              "enum": [
+                "before",
+                "after"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/routes/distance": {
+      "post": {
+        "operationId": "RoutesController_calculateDistance",
+        "summary": "Рассчитать геодезическое расстояние",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalculateDistanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "routes"
+        ]
+      }
+    },
+    "/routes/nearby": {
+      "get": {
+        "operationId": "RoutesController_findNearby",
+        "summary": "Найти карты в заданном радиусе",
+        "parameters": [
+          {
+            "name": "latitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 40.785091,
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": -73.968285,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radiusKm",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0.1,
+              "maximum": 500,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "routes"
+        ]
+      }
+    },
+    "/routes/search": {
+      "post": {
+        "operationId": "RoutesController_search",
+        "summary": "Подобрать direct route и промежуточные карты",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRouteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "routes"
+        ]
+      }
+    },
+    "/transactions-lab/non-repeatable-read": {
+      "post": {
+        "operationId": "TransactionsLabController_demonstrateNonRepeatableRead",
+        "summary": "Воспроизвести non-repeatable read на READ COMMITTED и REPEATABLE READ",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "transactions-lab"
+        ]
+      }
+    },
+    "/transactions-lab/phantom-read": {
+      "post": {
+        "operationId": "TransactionsLabController_demonstratePhantomRead",
+        "summary": "Воспроизвести phantom read на READ COMMITTED и REPEATABLE READ",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "transactions-lab"
+        ]
+      }
+    },
+    "/transactions-lab/deadlock": {
+      "post": {
+        "operationId": "TransactionsLabController_simulateDeadlock",
+        "summary": "Воспроизвести deadlock на двух параллельных транзакциях",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "transactions-lab"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Nest Outbox API",
+    "description": "Versioned HTTP contract for Nest Outbox API.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "Alex",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "password": {
+            "type": "string",
+            "example": "correct horse battery staple",
+            "minLength": 12
+          },
+          "avatarSeed": {
+            "type": "string",
+            "example": "alex-avatar"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "correct horse battery staple"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "description": "Refresh JWT из предыдущего login/refresh."
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "ReceiveInboxEventDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "example": "payment-evt-123"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "payment.completed"
+          },
+          "payload": {
+            "type": "object",
+            "example": {
+              "orderId": 42,
+              "amount": 199.9
+            }
+          }
+        },
+        "required": [
+          "eventId",
+          "eventType",
+          "payload"
+        ]
+      },
+      "CreateMapDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Название карты.",
+            "example": "Central Park QR map",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание карты.",
+            "example": "Точка для генерации QR-code."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Широта.",
+            "example": 40.785091
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Долгота.",
+            "example": -73.968285
+          },
+          "ownerUserId": {
+            "type": "number",
+            "description": "ID пользователя-владельца карты.",
+            "example": 1
+          }
+        },
+        "required": [
+          "title",
+          "latitude",
+          "longitude",
+          "ownerUserId"
+        ]
+      },
+      "UpdateMapDto": {
+        "type": "object",
+        "properties": {
+          "ownerUserId": {
+            "type": "number",
+            "description": "Новый владелец карты."
+          },
+          "title": {
+            "type": "string",
+            "description": "Новое название карты.",
+            "example": "Updated QR map",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "description": "Новое описание карты.",
+            "example": "Обновленное описание."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Новая широта.",
+            "example": 40.785091
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Новая долгота.",
+            "example": -73.968285
+          }
+        }
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email пользователя. Должен быть уникальным.",
+            "example": "user@example.com",
+            "maxLength": 320
+          },
+          "name": {
+            "type": "string",
+            "description": "Отображаемое имя пользователя.",
+            "example": "Alex",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "avatarSeed": {
+            "type": "string",
+            "description": "Seed для генерации avatar. Если не передан, будет создан автоматически.",
+            "example": "alex-avatar-seed",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Новый email пользователя. Должен быть уникальным.",
+            "example": "new-user@example.com",
+            "maxLength": 320
+          },
+          "name": {
+            "type": "string",
+            "description": "Новое отображаемое имя пользователя.",
+            "example": "Alex Updated",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "avatarSeed": {
+            "type": "string",
+            "description": "Новый seed для генерации avatar.",
+            "example": "alex-updated-seed",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "UpdateUserRoleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "GenerateUserAvatarDto": {
+        "type": "object",
+        "properties": {
+          "seed": {
+            "type": "string",
+            "description": "Переопределяет `users.avatar_seed` для конкретной генерации.",
+            "example": "custom-avatar-seed",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "GenerateMapQrDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL, который будет закодирован в QR-code.",
+            "example": "https://example.com/maps/1",
+            "maxLength": 2048
+          },
+          "payload": {
+            "type": "string",
+            "description": "Произвольный payload для QR-code. Используется, если `url` не передан.",
+            "example": "{\"mapId\":1,\"source\":\"manual\"}",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        }
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "description": "ID пользователя, который создает заказ.",
+            "example": 1,
+            "minimum": 1
+          },
+          "mapId": {
+            "type": "number",
+            "description": "ID карты, связанной с заказом.",
+            "example": 1,
+            "minimum": 1
+          },
+          "totalAmount": {
+            "type": "number",
+            "description": "Сумма заказа.",
+            "example": 199.9,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "userId",
+          "mapId",
+          "totalAmount"
+        ]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Новый статус заказа.",
+            "enum": [
+              "pending",
+              "paid",
+              "completed",
+              "cancelled",
+              "failed"
+            ],
+            "example": "paid"
+          },
+          "version": {
+            "type": "number",
+            "description": "Текущая версия заказа для optimistic locking.",
+            "example": 0,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ]
+      },
+      "UpdateOrderStatusPessimisticDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Новый статус заказа.",
+            "enum": [
+              "pending",
+              "paid",
+              "completed",
+              "cancelled",
+              "failed"
+            ],
+            "example": "paid"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "RetryOutboxEventDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Причина ручного повтора обработки события.",
+            "example": "Исправлена внешняя ошибка генерации media, можно повторить.",
+            "minLength": 3,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RoutePointDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 40.785091
+          },
+          "longitude": {
+            "type": "number",
+            "example": -73.968285
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "CalculateDistanceDto": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/RoutePointDto"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/RoutePointDto"
+          }
+        },
+        "required": [
+          "origin",
+          "destination"
+        ]
+      },
+      "SearchRouteDto": {
+        "type": "object",
+        "properties": {
+          "originMapId": {
+            "type": "number",
+            "example": 1,
+            "minimum": 1
+          },
+          "destinationMapId": {
+            "type": "number",
+            "example": 2,
+            "minimum": 1
+          },
+          "candidateRadiusKm": {
+            "type": "number",
+            "default": 25,
+            "minimum": 0.1,
+            "maximum": 500
+          },
+          "limit": {
+            "type": "number",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "originMapId",
+          "destinationMapId"
+        ]
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "errorCode",
+          "message",
+          "path",
+          "method",
+          "timestamp"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "errorCode": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "example": "/orders"
+          },
+          "method": {
+            "type": "string",
+            "example": "POST"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestId": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

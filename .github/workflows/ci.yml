@@ -35,6 +35,19 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Generate OpenAPI contract
+        run: bun run openapi:generate
+
+      - name: Check committed OpenAPI contract
+        run: git diff --exit-code -- docs/openapi.json
+
+      - name: Reject breaking contract without API version bump
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${GITHUB_BASE_REF}"
+          git show "origin/${GITHUB_BASE_REF}:docs/openapi.json" > /tmp/openapi-base.json
+          bun run contract:breaking -- /tmp/openapi-base.json ../docs/openapi.json
+
       - name: Unit tests
         run: bun run test
 
