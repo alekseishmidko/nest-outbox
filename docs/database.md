@@ -11,6 +11,8 @@
 Миграция `013_add_audit_and_soft_delete.sql` добавляет soft delete и таблицу
 `audit_log`; подробное описание сценариев находится в [audit-soft-delete.md](audit-soft-delete.md).
 
+Security hardening и ограничения media описаны в [security-hardening.md](security-hardening.md).
+
 Практические запросы: `docs/sql-examples.md`.
 Seed и миграции: `docs/seed.md`.
 

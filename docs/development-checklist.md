@@ -710,18 +710,18 @@ Definition of Done.
   - [x] Добавить restore endpoints и integration-регрессию доступа.
   - [x] Описать схему и эксплуатационные критерии в `docs/audit-soft-delete.md`.
 
-- [ ] Security hardening.
-  - [ ] Подключить Helmet, CSP, HSTS и secure headers.
-  - [ ] Добавить CSRF-защиту для cookie-based auth сценариев.
-  - [ ] Ограничить размер и частоту upload-запросов.
-  - [ ] Проверять MIME/content, запрещать path traversal и запускать antivirus hook.
-  - [ ] Добавить security regression-тесты ownership, file upload и headers.
+- [x] Security hardening.
+  - [x] Подключить Helmet, CSP, HSTS и secure headers.
+  - [x] Добавить double-submit CSRF-защиту для cookie-based auth сценариев.
+  - [x] Ограничить размер тела и частоту media/upload-запросов.
+  - [x] Проверять MIME/content, запрещать path traversal и выполнять antivirus hook.
+  - [x] Добавить security regression-тесты media validation; ownership покрыт API e2e.
 
-- [ ] Contract tests.
-  - [ ] Генерировать OpenAPI spec в CI.
-  - [ ] Проверять DTO, status codes и error envelope против контракта.
-  - [ ] Добавить consumer contract для ключевых endpoint-ов.
-  - [ ] Запретить breaking changes без изменения версии API.
+- [x] Contract tests.
+  - [x] Генерировать OpenAPI spec в CI.
+  - [x] Проверять DTO, status codes и error envelope против контракта.
+  - [x] Добавить consumer contract для ключевых endpoint-ов.
+  - [x] Запретить breaking changes без изменения версии API.
 
 - [ ] Property-based и mutation testing.
   - [ ] Генерировать координаты и проверять симметрию/неотрицательность расстояния.

@@ -13,6 +13,7 @@ import { MediaService } from '../services/media.service';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { OwnershipGuard } from '../../auth/guards/ownership.guard';
+import { RateLimitGuard } from '../../auth/guards/rate-limit.guard';
 
 @ApiTags('media')
 @Controller('media')
@@ -20,7 +21,7 @@ export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
   @Post('users/:userId/avatar')
-  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard, RateLimitGuard)
   @ApiOperation({ summary: 'Сгенерировать avatar для пользователя' })
   generateUserAvatar(
     @Param('userId', ParseIntPipe) userId: number,
@@ -30,7 +31,7 @@ export class MediaController {
   }
 
   @Post('maps/:mapId/qr')
-  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard, RateLimitGuard)
   @ApiOperation({ summary: 'Сгенерировать QR-code для карты' })
   generateMapQr(
     @Param('mapId', ParseIntPipe) mapId: number,
