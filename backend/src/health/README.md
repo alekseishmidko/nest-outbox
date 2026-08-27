@@ -4,16 +4,18 @@
 
 Модуль `health` нужен для проверки состояния приложения в Docker Compose и production-окружении.
 
-## Планируемая структура
+## Endpoints
 
-- `controllers`: endpoints для health-check.
-- `services`: проверки приложения, БД и зависимостей.
+- `GET /health/live`: liveness без внешних зависимостей.
+- `GET /health/ready`: readiness MySQL, storage и Outbox worker.
+- `GET /health`: обратно совместимый alias readiness.
 
 ## Основные задачи
 
 - Endpoint готовности приложения.
 - Endpoint живости приложения.
-- Проверка подключения к MySQL.
+- Проверка подключения к MySQL и доступности storage.
+- Проверка, что worker не находится в shutdown состоянии.
 
 ## Infrastructure-фокус
 

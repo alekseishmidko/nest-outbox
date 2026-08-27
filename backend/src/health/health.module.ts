@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './services/health.service';
+import { MediaModule } from '../media/media.module';
+import { OutboxModule } from '../outbox/outbox.module';
 
 /**
  * Модуль health-check.
@@ -9,7 +11,7 @@ import { HealthService } from './services/health.service';
  * Предоставляет endpoints для проверки состояния приложения и инфраструктуры.
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, MediaModule, OutboxModule],
   controllers: [HealthController],
   providers: [HealthService],
 })

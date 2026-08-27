@@ -37,6 +37,11 @@ export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
     this.config = parseOutboxPublisherConfig();
   }
 
+  /** Возвращает состояние worker для readiness probe. */
+  isHealthy(): boolean {
+    return !this.isShuttingDown && this.timer !== null;
+  }
+
   /**
    * Запускает периодический polling после инициализации Nest-модуля.
    */

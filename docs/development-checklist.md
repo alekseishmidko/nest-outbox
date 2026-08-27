@@ -695,11 +695,11 @@ Definition of Done.
   - [ ] Зафиксировать baseline latency и план `EXPLAIN ANALYZE`.
   - [ ] Добавить performance-тесты на критичные JOIN, routes и pagination.
 
-- [ ] Readiness/liveness и graceful shutdown.
-  - [ ] Разделить `/health/live` и `/health/ready`.
-  - [ ] Проверять MySQL, Redis/storage и состояние worker в readiness.
-  - [ ] Останавливать HTTP, worker и pool в определенном порядке.
-  - [ ] Добавить timeout graceful shutdown и соответствующие тесты.
+- [x] Readiness/liveness и graceful shutdown.
+  - [x] Разделить `/health/live` и `/health/ready`.
+  - [x] Проверять MySQL, storage и состояние worker в readiness.
+  - [x] Останавливать HTTP, worker и pool через Nest lifecycle в заданном порядке.
+  - [x] Добавить timeout graceful shutdown и соответствующие тесты.
 
 ### P2 — качество, безопасность и CI
 
