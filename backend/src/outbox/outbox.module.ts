@@ -26,6 +26,6 @@ import { OutboxPublisher } from './workers/outbox-publisher';
     OutboxRepository,
     OutboxService,
   ],
-  exports: [OutboxService],
+  exports: [OutboxService, OutboxPublisher],
 })
 export class OutboxModule {}

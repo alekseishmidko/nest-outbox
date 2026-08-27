@@ -16,7 +16,8 @@ import express, { NextFunction, Request, Response } from 'express';
  */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableShutdownHooks();
+  // Сигналы обрабатываются ниже явно, чтобы задать общий timeout shutdown.
+  app.enableShutdownHooks([]);
   app.useLogger(app.get(Logger));
   const logger = new NestLogger('Bootstrap');
   const port = Number(process.env.APP_PORT ?? process.env.PORT ?? 3000);
@@ -62,6 +63,11 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, swaggerDocument);
 
   await app.listen(port);
+  registerGracefulShutdown(
+    app,
+    logger,
+    Number(process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS ?? 10_000),
+  );
 
   const appUrl = `http://${host}:${port}`;
 
@@ -70,6 +76,37 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+/**
+ * Закрывает HTTP, workers и инфраструктурные providers через Nest lifecycle.
+ * Если provider завис, процесс завершается после ограниченного timeout.
+ */
+function registerGracefulShutdown(
+  app: { close: () => Promise<void> },
+  logger: NestLogger,
+  timeoutMs: number,
+): void {
+  let shuttingDown = false;
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.log(
+      `Graceful shutdown started: signal=${signal}, timeoutMs=${timeoutMs}`,
+    );
+    const timeout = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        logger.error(
+          `Graceful shutdown timeout reached: timeoutMs=${timeoutMs}`,
+        );
+        resolve();
+      }, timeoutMs),
+    );
+    await Promise.race([app.close(), timeout]);
+    process.exit(0);
+  };
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+}
 
 /**
  * Проверяет double-submit CSRF token для запросов с cookie-аутентификацией.

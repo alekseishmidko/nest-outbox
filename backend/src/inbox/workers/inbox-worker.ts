@@ -26,6 +26,13 @@ export class InboxWorker implements OnModuleInit, OnModuleDestroy {
     this.shuttingDown = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    const startedAt = Date.now();
+    const timeoutMs = Number(
+      process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS ?? 10_000,
+    );
+    while (this.running && Date.now() - startedAt < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
   }
 
   /** Выполняет один проход Inbox worker. */

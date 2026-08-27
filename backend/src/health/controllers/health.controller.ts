@@ -12,14 +12,20 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Проверить готовность приложения и MySQL' })
+  @ApiOperation({ summary: 'Проверить готовность приложения и инфраструктуры' })
   checkReadiness(): Promise<HealthCheckResult> {
+    return this.healthService.checkReadiness();
+  }
+
+  @Get('ready')
+  @ApiOperation({ summary: 'Проверить готовность MySQL, storage и worker' })
+  checkReady(): Promise<HealthCheckResult> {
     return this.healthService.checkReadiness();
   }
 
   @Get('live')
   @ApiOperation({ summary: 'Проверить, что HTTP-процесс приложения жив' })
-  checkLiveness(): Omit<HealthCheckResult, 'database'> {
+  checkLiveness(): Pick<HealthCheckResult, 'status' | 'timestamp'> {
     return this.healthService.checkLiveness();
   }
 }

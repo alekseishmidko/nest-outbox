@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { dirname, extname, join } from 'node:path';
 import {
@@ -40,6 +40,17 @@ export class MediaStorageService {
     }
 
     return this.saveToS3Compatible(input);
+  }
+
+  /** Проверяет доступность выбранного storage backend для readiness probe. */
+  async checkReadiness(): Promise<void> {
+    if (this.config.MEDIA_STORAGE_MODE === 'local-file') {
+      await access(this.config.MEDIA_LOCAL_STORAGE_DIR);
+      return;
+    }
+    if (this.config.MEDIA_STORAGE_MODE === 's3-compatible') {
+      new URL(this.config.S3_ENDPOINT);
+    }
   }
 
   /**

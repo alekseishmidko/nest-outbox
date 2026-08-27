@@ -26,6 +26,6 @@ import { SecurityModule } from '../security/security.module';
     MediaStorageService,
     DomainEventOutboxWriter,
   ],
-  exports: [MediaService],
+  exports: [MediaService, MediaStorageService],
 })
 export class MediaModule {}
