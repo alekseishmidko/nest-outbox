@@ -27,7 +27,7 @@ export class HealthService {
   ) {}
 
   /**
-   * Проверяет готовность приложения и доступность MySQL.
+   * Проверяет MySQL, storage, Outbox worker и optional Redis.
    */
   async checkReadiness(): Promise<HealthCheckResult> {
     const [rows] = await this.databaseService

@@ -668,13 +668,14 @@ Definition of Done.
 
 ### P1 — внешние зависимости и эксплуатация
 
-- [ ] Circuit breaker и timeout policy.
-  - [ ] Ввести единые timeout для storage, email, routing provider и платежей.
-  - [ ] Реализовать состояния `closed`, `open`, `half-open`.
-  - [ ] Ограничить retry и исключить retry для permanent errors.
-  - [ ] Добавить fallback или понятную ошибку API.
-  - [ ] Добавить метрики state changes, rejected calls и recovery time.
-  - [ ] Добавить integration-тесты timeout, open circuit и recovery.
+- [x] Circuit breaker и timeout policy.
+  - [x] Ввести единые timeout для storage, email, routing provider и платежей.
+  - [x] Реализовать состояния `closed`, `open`, `half-open`.
+  - [x] Ограничить retry и исключить retry для permanent errors.
+  - [x] Добавить fallback или понятную ошибку API.
+  - [x] Добавить метрики state changes, rejected calls и recovery time.
+  - [x] Добавить integration-тесты timeout, open circuit и recovery.
+  - [x] Создать `docs/circuit-breaker-timeout.md` с диаграммой и критериями применения.
 
 - [ ] Read models для отчетов.
   - [ ] Зафиксировать медленные JOIN через slow-query metrics и `EXPLAIN ANALYZE`.
