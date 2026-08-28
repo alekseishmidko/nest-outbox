@@ -5,12 +5,13 @@ import { AuthRepository } from './repositories/auth.repository';
 import { AuthService } from './services/auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
+import { RedisModule } from '../redis/redis.module';
 import { RolesGuard } from './guards/roles.guard';
 import { OwnershipGuard } from './guards/ownership.guard';
 
 /** Модуль JWT authentication, ролей и rate limiting. */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RedisModule],
   controllers: [AuthController],
   providers: [
     AuthRepository,

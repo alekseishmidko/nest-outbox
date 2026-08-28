@@ -10,6 +10,7 @@ import { MapRow } from '../types/map-row.type';
 import { SqlValue } from '../types/sql-value.type';
 import { createMapsQueryObject } from '../../common/sql/query-objects/maps.query-object';
 import { AuditLogRepository } from '../../audit/audit-log.repository';
+import { RedisCacheService } from '../../redis/redis-cache.service';
 
 /**
  * Repository карт.
@@ -18,9 +19,11 @@ import { AuditLogRepository } from '../../audit/audit-log.repository';
  */
 @Injectable()
 export class MapsRepository {
+  /** Создает repository карт с optional audit и cache-aside зависимостями. */
   constructor(
     @Inject(MYSQL_POOL) private readonly pool: Pool,
     @Optional() private readonly auditLog?: AuditLogRepository,
+    @Optional() private readonly cache?: RedisCacheService,
   ) {}
 
   /**
@@ -114,6 +117,8 @@ export class MapsRepository {
    * Ищет карту по идентификатору.
    */
   async findById(id: number): Promise<MapRecord | null> {
+    const cached = await this.cache?.get<MapRecord>(`map:${id}`);
+    if (cached) return hydrateMap(cached);
     const [rows] = await this.pool.execute<MapRow[]>(
       `
         SELECT
@@ -132,7 +137,9 @@ export class MapsRepository {
       [id],
     );
 
-    return rows[0] ? this.toRecord(rows[0]) : null;
+    const record = rows[0] ? this.toRecord(rows[0]) : null;
+    if (record) await this.cache?.set(`map:${id}`, record, 300);
+    return record;
   }
 
   /**
@@ -185,6 +192,8 @@ export class MapsRepository {
         `,
         values,
       );
+      await this.cache?.invalidate(`map:${id}`);
+      await this.cache?.invalidatePrefix('routes:');
     }
 
     const after = await this.findById(id);
@@ -212,6 +221,8 @@ export class MapsRepository {
       [actorUserId ?? null, id],
     );
 
+    await this.cache?.invalidate(`map:${id}`);
+    await this.cache?.invalidatePrefix('routes:');
     return result.affectedRows > 0;
   }
 
@@ -220,6 +231,7 @@ export class MapsRepository {
       'UPDATE maps SET deleted_at = NULL, updated_by = ? WHERE id = ? AND deleted_at IS NOT NULL',
       [actorUserId ?? null, id],
     );
+    await this.cache?.invalidate(`map:${id}`);
     return result.affectedRows > 0;
   }
 
@@ -251,4 +263,12 @@ export class MapsRepository {
       updatedAt: row.updated_at,
     };
   }
+}
+
+function hydrateMap(record: MapRecord): MapRecord {
+  return {
+    ...record,
+    createdAt: new Date(record.createdAt),
+    updatedAt: new Date(record.updatedAt),
+  };
 }

@@ -18,6 +18,7 @@ import { RoutesModule } from './routes/routes.module';
 import { SeedModule } from './seed/seed.module';
 import { TransactionsLabModule } from './transactions-lab/transactions-lab.module';
 import { UsersModule } from './users/users.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { UsersModule } from './users/users.module';
     OutboxModule,
     ReportsModule,
     RoutesModule,
+    RedisModule,
     SeedModule,
     TransactionsLabModule,
     UsersModule,

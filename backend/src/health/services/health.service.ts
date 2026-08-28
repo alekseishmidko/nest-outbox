@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database.service';
 import { HealthCheckResult } from '../types/health-check-result.type';
 import { MediaStorageService } from '../../media/storage/media-storage.service';
 import { OutboxPublisher } from '../../outbox/workers/outbox-publisher';
+import { RedisService } from '../../redis/redis.service';
 
 type HealthRow = RowDataPacket & {
   health_check: number;
@@ -17,10 +18,12 @@ type HealthRow = RowDataPacket & {
  */
 @Injectable()
 export class HealthService {
+  /** Принимает проверки БД, storage, worker и optional Redis probe. */
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly mediaStorageService?: MediaStorageService,
     private readonly outboxPublisher?: OutboxPublisher,
+    private readonly redis?: RedisService,
   ) {}
 
   /**
@@ -37,12 +40,14 @@ export class HealthService {
     await this.mediaStorageService?.checkReadiness();
     if (this.outboxPublisher && !this.outboxPublisher.isHealthy())
       throw new Error('Outbox worker is not ready');
+    if (this.redis?.isEnabled()) await this.redis.ping();
 
     return {
       status: 'ok',
       database: 'ok',
       storage: 'ok',
       worker: 'ok',
+      redis: this.redis?.isEnabled() ? 'ok' : 'disabled',
       timestamp: new Date().toISOString(),
     };
   }
