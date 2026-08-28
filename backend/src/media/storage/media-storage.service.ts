@@ -1,4 +1,8 @@
-import { Injectable, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { dirname, extname, join } from 'node:path';
@@ -9,6 +13,7 @@ import {
 import { MediaStorageSaveInput } from '../types/media-storage-save-input.type';
 import { MediaStorageSaveResult } from '../types/media-storage-save-result.type';
 import { MediaSecurityService } from '../../security/media-security.service';
+import { CircuitBreaker } from '../../resilience/circuit-breaker';
 
 /**
  * Слой хранения media assets.
@@ -22,12 +27,17 @@ export class MediaStorageService {
 
   constructor(
     @Optional() private readonly mediaSecurity?: MediaSecurityService,
+    @Optional() private readonly circuitBreaker?: CircuitBreaker,
   ) {
     this.config = parseMediaStorageConfig();
   }
 
   /**
    * Сохраняет media content в storage backend, выбранный через env.
+   *
+   * Для database и local-file выполняется локальный путь. Для S3-compatible
+   * вызывается resilience policy: timeout прерывает HTTP PUT, transient failure
+   * ограниченно повторяется, а open circuit сразу возвращает 503.
    */
   async save(input: MediaStorageSaveInput): Promise<MediaStorageSaveResult> {
     this.mediaSecurity?.validate(input.content, input.mimeType);
@@ -99,13 +109,35 @@ export class MediaStorageService {
 
   /**
    * Сохраняет content в S3-compatible backend, например MinIO.
+   *
+   * Ошибка provider намеренно преобразуется в ServiceUnavailableException:
+   * клиент получает стабильный errorCode, а внутренняя причина остается в
+   * диагностическом поле и логах. Фоновый Outbox при этом видит исключение и
+   * может применить свою политику повторной доставки.
    */
   private async saveToS3Compatible(
     input: MediaStorageSaveInput,
   ): Promise<MediaStorageSaveResult> {
     const objectKey = this.createObjectKey(input);
 
-    await this.putS3Object(objectKey, input);
+    try {
+      if (this.circuitBreaker) {
+        await this.circuitBreaker.executeWithRetry(
+          'storage.s3',
+          (signal) => this.putS3Object(objectKey, input, signal),
+          undefined,
+          { maxAttempts: Number(process.env.STORAGE_MAX_ATTEMPTS ?? 2) },
+        );
+      } else {
+        await this.putS3Object(objectKey, input);
+      }
+    } catch (error) {
+      throw new ServiceUnavailableException({
+        errorCode: 'STORAGE_UNAVAILABLE',
+        message: 'Storage provider временно недоступен',
+        cause: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
 
     return {
       storageType: 'external',
@@ -124,10 +156,15 @@ export class MediaStorageService {
 
   /**
    * Выполняет S3 PUT Object с AWS Signature V4.
+   *
+   * AbortSignal передается в native fetch из circuit breaker. Важно передавать
+   * его именно в сетевой вызов: без этого timeout breaker не освобождает
+   * ресурсы провайдера и не защищает worker от зависших сокетов.
    */
   private async putS3Object(
     objectKey: string,
     input: MediaStorageSaveInput,
+    signal?: AbortSignal,
   ): Promise<void> {
     const endpoint = new URL(this.config.S3_ENDPOINT);
     const requestUrl = this.createS3ObjectUrl(endpoint, objectKey);
@@ -168,14 +205,16 @@ export class MediaStorageService {
       `SignedHeaders=${signedHeaders}`,
       `Signature=${signature}`,
     ].join(', ');
-    const response = await fetch(requestUrl, {
+    const requestInit: RequestInit = {
       method: 'PUT',
       headers: {
         ...headers,
         authorization,
       },
       body: this.toArrayBuffer(input.content),
-    });
+    };
+    if (signal) requestInit.signal = signal;
+    const response = await fetch(requestUrl, requestInit);
 
     if (!response.ok) {
       throw new Error(

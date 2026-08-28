@@ -52,6 +52,28 @@ export const cacheMissesTotal = new Counter({
   registers: [metricsRegistry],
 });
 
+/** Метрики переходов и отказов circuit breaker. */
+export const circuitBreakerStateChangesTotal = new Counter({
+  name: 'circuit_breaker_state_changes_total',
+  help: 'Количество переходов состояний circuit breaker.',
+  labelNames: ['service', 'from', 'to'] as const,
+  registers: [metricsRegistry],
+});
+
+export const circuitBreakerRejectedTotal = new Counter({
+  name: 'circuit_breaker_rejected_total',
+  help: 'Количество отклоненных вызовов открытым circuit.',
+  labelNames: ['service'] as const,
+  registers: [metricsRegistry],
+});
+
+export const circuitBreakerRecoverySeconds = new Histogram({
+  name: 'circuit_breaker_recovery_seconds',
+  help: 'Время восстановления circuit breaker.',
+  labelNames: ['service'] as const,
+  registers: [metricsRegistry],
+});
+
 /**
  * Счетчик успешно обработанных Outbox-событий.
  */

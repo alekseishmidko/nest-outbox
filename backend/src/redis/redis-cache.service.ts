@@ -34,7 +34,7 @@ export class RedisCacheService {
     try {
       await this.redis.set(key, JSON.stringify(value), ttlSeconds);
     } catch {
-      /* fallback is DB */
+      // При недоступном Redis основной код продолжает чтение из DB.
     }
   }
 
@@ -44,7 +44,7 @@ export class RedisCacheService {
       try {
         await this.redis.del(key);
       } catch {
-        /* fallback is stale-free DB read */
+        // При ошибке invalidation короткий TTL ограничивает stale window.
       }
     }
   }

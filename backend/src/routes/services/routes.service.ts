@@ -36,6 +36,7 @@ export class RoutesService {
     };
   }
 
+  /** Возвращает ближайшие карты через repository и его cache-aside слой. */
   findNearby(query: NearbyRoutesQueryDto) {
     return this.routesRepository.findNearby(query);
   }
