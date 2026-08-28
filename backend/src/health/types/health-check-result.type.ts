@@ -6,5 +6,6 @@ export type HealthCheckResult = {
   database: 'ok';
   storage?: 'ok' | 'error';
   worker?: 'ok' | 'error';
+  redis?: 'ok' | 'disabled' | 'error';
   timestamp: string;
 };

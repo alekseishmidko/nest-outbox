@@ -12,6 +12,7 @@
 `audit_log`; подробное описание сценариев находится в [audit-soft-delete.md](audit-soft-delete.md).
 
 Security hardening и ограничения media описаны в [security-hardening.md](security-hardening.md).
+Redis-кэш и distributed rate limiting описаны в [redis-cache-rate-limit.md](redis-cache-rate-limit.md).
 Readiness и порядок graceful shutdown описаны в [health-shutdown.md](health-shutdown.md).
 
 Практические запросы: `docs/sql-examples.md`.

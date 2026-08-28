@@ -37,6 +37,21 @@ export const httpRequestDurationSeconds = new Histogram({
   registers: [metricsRegistry],
 });
 
+/** Счетчики cache-aside попаданий и промахов. */
+export const cacheHitsTotal = new Counter({
+  name: 'cache_hits_total',
+  help: 'Количество cache hit.',
+  labelNames: ['cache'] as const,
+  registers: [metricsRegistry],
+});
+
+export const cacheMissesTotal = new Counter({
+  name: 'cache_misses_total',
+  help: 'Количество cache miss и ошибок Redis.',
+  labelNames: ['cache'] as const,
+  registers: [metricsRegistry],
+});
+
 /**
  * Счетчик успешно обработанных Outbox-событий.
  */

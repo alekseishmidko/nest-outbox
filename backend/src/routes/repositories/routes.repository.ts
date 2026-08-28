@@ -1,17 +1,22 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Pool } from 'mysql2/promise';
 import { MYSQL_POOL } from '../../database/connections/mysql-pool.token';
 import { NearbyMap } from '../types/nearby-map.type';
 import { RouteMap } from '../types/route-map.type';
 import { RouteMapRow } from '../types/route-map-row.type';
 import { nearby } from '../../common/sql/specifications/filter-specifications';
+import { RedisCacheService } from '../../redis/redis-cache.service';
 
 const KM_PER_LATITUDE_DEGREE = 111.32;
 
 /** SQL-доступ к географическому поиску карт. */
 @Injectable()
 export class RoutesRepository {
-  constructor(@Inject(MYSQL_POOL) private readonly pool: Pool) {}
+  /** Создает SQL repository с optional cache-aside слоем Redis. */
+  constructor(
+    @Inject(MYSQL_POOL) private readonly pool: Pool,
+    @Optional() private readonly cache?: RedisCacheService,
+  ) {}
 
   /** Ищет карты через bounding box и точный `ST_Distance_Sphere`. */
   async findNearby(input: {
@@ -20,6 +25,9 @@ export class RoutesRepository {
     radiusKm: number;
     limit: number;
   }): Promise<NearbyMap[]> {
+    const cacheKey = `routes:nearby:${input.latitude}:${input.longitude}:${input.radiusKm}:${input.limit}`;
+    const cached = await this.cache?.get<NearbyMap[]>(cacheKey);
+    if (cached) return cached;
     const nearbyWhere = nearby(input).toSql();
     const [rows] = await this.pool.query<RouteMapRow[]>(
       `
@@ -47,14 +55,19 @@ export class RoutesRepository {
       ],
     );
 
-    return rows.map((row) => ({
+    const result = rows.map((row) => ({
       ...this.toMap(row),
       distanceKm: Number(row.distance_km),
     }));
+    await this.cache?.set(cacheKey, result, 30);
+    return result;
   }
 
   /** Возвращает маршрутные данные двух карт одним запросом. */
   async findMapsByIds(ids: number[]): Promise<RouteMap[]> {
+    const cacheKey = `routes:maps:${[...ids].sort((a, b) => a - b).join(',')}`;
+    const cached = await this.cache?.get<RouteMap[]>(cacheKey);
+    if (cached) return cached;
     const [rows] = await this.pool.query<RouteMapRow[]>(
       `
         SELECT id, title, latitude, longitude
@@ -64,7 +77,9 @@ export class RoutesRepository {
       ids,
     );
 
-    return rows.map(this.toMap);
+    const result = rows.map(this.toMap);
+    await this.cache?.set(cacheKey, result, 300);
+    return result;
   }
 
   /**

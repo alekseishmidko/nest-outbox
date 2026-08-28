@@ -652,19 +652,19 @@ Definition of Done.
   - [x] Сравнить читаемость соотношения specification/query object в документации.
   - [x] Создать `docs/specification-pattern.md` со схемой и правилами границ абстракции.
 
-- [ ] Audit log и soft delete.
-  - [ ] Добавить миграции `deleted_at`, `created_by`, `updated_by` где необходимо.
-  - [ ] Создать таблицу `audit_log` с actor, action, entity, before/after JSON и request id.
-  - [ ] Записывать изменения статуса заказа, ownership и ролей.
-  - [ ] Исключить soft-deleted записи из обычных запросов.
-  - [ ] Добавить integration-тесты аудита и восстановления доступа.
+- [x] Audit log и soft delete.
+  - [x] Добавить миграции `deleted_at`, `created_by`, `updated_by` где необходимо.
+  - [x] Создать таблицу `audit_log` с actor, action, entity, before/after JSON и request id.
+  - [x] Записывать изменения статуса заказа, ownership и ролей.
+  - [x] Исключить soft-deleted записи из обычных запросов.
+  - [x] Добавить integration-тесты аудита и восстановления доступа.
 
-- [ ] Redis-кэш и distributed rate limiting.
-  - [ ] Выбрать ключи и TTL для nearby routes, карт и read-heavy запросов.
-  - [ ] Добавить cache-aside с invalidation при изменении карты.
-  - [ ] Перенести rate limit counter в Redis для нескольких backend-инстансов.
-  - [ ] Реализовать fallback при недоступном Redis.
-  - [ ] Добавить метрики cache hit/miss и integration-тесты invalidation.
+- [x] Redis-кэш и distributed rate limiting.
+  - [x] Выбрать ключи и TTL для nearby routes, карт и read-heavy запросов.
+  - [x] Добавить cache-aside с invalidation при изменении карты.
+  - [x] Перенести rate limit counter в Redis для нескольких backend-инстансов.
+  - [x] Реализовать fallback при недоступном Redis.
+  - [x] Добавить метрики cache hit/miss и integration-тесты invalidation.
 
 ### P1 — внешние зависимости и эксплуатация
 
