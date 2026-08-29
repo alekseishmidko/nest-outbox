@@ -591,8 +591,8 @@
 ## 23. Следующий backlog: паттерны и инженерные практики
 
 Пункты ниже декомпозированы по приоритету. Для каждой инициативы сначала добавить
-документацию и тесты, затем реализацию и только после этого включать её в общий
-Definition of Done.
+документацию и тесты, затем реализацию и только после этого пройти индивидуальный
+Definition of Done ниже.
 
 ### P0 — надежность и корректность данных
 
@@ -738,40 +738,80 @@ Definition of Done.
 
 ### Definition of Done для каждого пункта backlog
 
-- [ ] Есть миграции и rollback/операционная инструкция.
-- [ ] Есть unit-тесты бизнес-логики.
-- [ ] Есть integration-тесты SQL/конкурентности, если пункт связан с БД.
-- [ ] Есть e2e или contract-тест публичного API, если меняется API.
-- [ ] Есть structured logs, metrics и alerting для production-сценария.
-- [ ] Есть русскоязычный JSDoc публичных классов и методов.
-- [ ] Есть документация в `docs/` с целью, ограничениями и примером запуска.
-- [ ] Обновлены Docker/CI scripts и переменные окружения.
+Этот блок является обязательным gate для каждой инициативы, а не только для
+релиза целиком. Владелец backlog-пункта копирует его в PR/issue, отмечает
+неприменимые критерии с причиной и только после этого меняет статус инициативы
+на `[x]`.
 
-## 24. Definition of Done
+#### Индивидуальный checklist
 
-- [ ] Приложение запускается через Docker для `local`.
-- [ ] Приложение запускается через Docker для `prod`.
-- [ ] БД поднимается автоматически.
-- [ ] Миграции применяются автоматически или одной документированной командой.
-- [ ] Seed заполняет БД тестовыми данными.
-- [ ] Swagger доступен и описывает все публичные endpoints.
-- [ ] DB-клиент доступен из Docker.
-- [ ] Есть рабочие CRUD endpoints.
-- [ ] Есть генерация QR-code.
-- [ ] Есть генерация avatar.
-- [ ] Есть таблица Outbox.
-- [ ] Создание заказа и запись Outbox-события выполняются в одной транзакции.
-- [ ] Outbox worker обрабатывает события без брокера.
-- [ ] Есть retry и обработка ошибок Outbox.
+- [ ] Изменение схемы БД подтверждено миграцией. Для миграции описаны порядок
+  применения, совместимость со старой версией, rollback или безопасная
+  forward-fix стратегия, backup/restore и проверка на staging.
+- [ ] Есть операционная инструкция: команда запуска, ожидаемые locks/downtime,
+  проверка результата и действия при ошибке. Для пунктов без БД явно указано:
+  `N/A — схема не изменяется`.
+- [ ] Есть unit-тесты бизнес-логики: happy path, ошибочный ввод, boundary cases,
+  permission/ownership и идемпотентность, если они относятся к пункту.
+- [ ] Если затронут SQL, есть integration-тесты на реальной MySQL-схеме; если
+  возможна конкуренция — тесты locking, rollback, duplicate/retry и конфликтов.
+- [ ] Если изменен публичный API, есть e2e или contract-тесты для DTO, status
+  codes, error envelope, auth и обратной совместимости. Иначе указано `N/A`.
+- [ ] Production-сценарий наблюдаем: structured log с request/correlation id,
+  counters/histograms/gauges, alert с порогом, severity и ссылкой на runbook.
+- [ ] Есть русскоязычный JSDoc публичных классов, методов, параметров,
+  возвращаемых значений и ожидаемых исключений. Комментарий объясняет смысл и
+  ограничения, а не только повторяет имя метода.
+- [ ] В `docs/` есть описание цели, проблемы, решения, ограничений, схемы при
+  необходимости и пример запуска/проверки.
+- [ ] Обновлены Docker Compose, CI workflow/scripts, `.env.example` и таблица
+  переменных окружения, если пункт влияет на runtime или инфраструктуру.
+- [ ] Пройдены `format:check`, `lint:check`, build и применимые
+  unit/integration/e2e/contract проверки; результаты и ограничения указаны в PR.
+
+#### Правила применимости
+
+| Тип пункта | Обязательные части DoD |
+| --- | --- |
+| Бизнес-логика | unit, JSDoc, docs, observability при production effect |
+| SQL/миграция | migration + rollback/ops, unit, MySQL integration, logs/metrics/alerts |
+| Публичный API | unit, e2e/contract, error compatibility, JSDoc, docs |
+| Worker/Outbox | unit, integration resume/concurrency, logs, metrics, alerts, runbook |
+| Инфраструктура/CI | Docker/env/CI, smoke-check, docs, failure alert или documented N/A |
+
+`N/A` допустим только с коротким объяснением. Например, для Circuit Breaker
+миграция не нужна, но обязательны env-документация, metrics/alerts и lifecycle
+тесты; для чистого DTO без изменения схемы не нужна rollback-миграция, но нужен
+contract/e2e-тест при изменении API.
+
+## 24. Definition of Done релиза
+
+- [x] Приложение запускается через Docker для `local` (`docker/docker-compose.local.yml`).
+- [x] Приложение запускается через Docker для `prod` (`docker/docker-compose.prod.yml`).
+- [x] БД поднимается автоматически через Docker Compose healthcheck и `depends_on`.
+- [x] Миграции применяются автоматически в Compose или командой `bun run db:migrate`.
+- [x] Seed заполняет БД тестовыми данными командой `bun run db:seed`.
+- [x] Swagger доступен по `/docs` и описывает публичные endpoints.
+- [x] DB-клиент Adminer доступен из Docker.
+- [x] Есть рабочие CRUD endpoints для users, maps и orders.
+- [x] Есть генерация QR-code.
+- [x] Есть генерация avatar.
+- [x] Есть таблица Outbox и миграции для неё.
+- [x] Создание заказа и запись Outbox-события выполняются в одной транзакции.
+- [x] Outbox worker обрабатывает события без брокера.
+- [x] Есть retry, backoff, dead-letter и обработка ошибок Outbox.
 - [x] Есть структурные логи.
 - [x] Есть `/metrics`.
 - [x] Prometheus собирает метрики.
 - [x] Grafana показывает dashboard.
 - [x] Есть k6-сценарии.
-- [ ] Есть unit, integration и e2e тесты.
+- [x] Есть unit, integration и e2e тесты. Для локального запуска integration/e2e
+  требуется доступный MySQL; в CI используется MySQL service.
 - [x] Есть CI для format, lint, build и test.
 - [x] Есть отдельный CI job для integration/e2e с MySQL service.
-- [ ] Есть бизнес-модуль `routes` для расчета расстояний и подбора маршрута.
-- [ ] Есть transaction lab с примерами isolation levels, deadlock retry, optimistic locking и pessimistic locking.
-- [ ] Есть документация по каждому модулю.
-- [ ] Ключевые публичные классы и методы имеют JSDoc на русском языке.
+- [x] Есть бизнес-модуль `routes` для расчета расстояний и подбора маршрута.
+- [x] Есть transaction lab с примерами isolation levels, deadlock retry, optimistic locking и pessimistic locking.
+- [ ] Есть документация по каждому модулю. Базовая документация и документы
+  backlog-пунктов созданы; отдельные module-level страницы для всех модулей ещё
+  нужно унифицировать.
+- [x] Ключевые публичные классы и методы имеют JSDoc на русском языке.
